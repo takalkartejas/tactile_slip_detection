@@ -192,23 +192,22 @@ if __name__ == "__main__":
         # creats a numpy array of images, then it lumps the images to together in batch of 5 for lstm
     #(None,5)
     filepaths, label = manage_data.load_sequential_data()
-    print(filepaths.shape)
-    print(label.shape)
+ 
 
-    # # creates a tensor called dataset which contains the images. 
-    # #The images are not loaded and stored in the seperate memory, it uses the existing images instead
-    # #This saves time and memory
-    # #(None,5,480,640,3)
-    # print(filepaths.shape)
-    # manage_data.create_sequential_dataset(filepaths,label)
-    # for batch in manage_data.dataset.take(1):  # Take one batch to print its shape
-    #     images_batch, labels_batch = batch
-    #     print("Images batch shape:", images_batch.shape)
-    #     print("Labels batch shape:", labels_batch.shape)
-    # manage_data.split_dataset(filepaths)
-    # #creates a combined network of cnn and lstm
-    # print('train set=',manage_data.train_dataset)
-    # network.cnn_lstm1()
-    # network.train(manage_data.train_dataset, manage_data.val_dataset)
+    # creates a tensor called dataset which contains the images. 
+    #The images are not loaded and stored in the seperate memory, it uses the existing images instead
+    #This saves time and memory
+    #(None,5,480,640,3)
+    print(filepaths.shape)
+    manage_data.create_sequential_dataset(filepaths,label)
+    for batch in manage_data.dataset.take(1):  # Take one batch to print its shape
+        images_batch, labels_batch = batch
+        print("Images batch shape:", images_batch.shape)
+        print("Labels batch shape:", labels_batch.shape)
+    manage_data.split_dataset(filepaths)
+    #creates a combined network of cnn and lstm
+    print('train set=',manage_data.train_dataset)
+    network.cnn_lstm1()
+    network.train(manage_data.train_dataset, manage_data.val_dataset)
     
     
