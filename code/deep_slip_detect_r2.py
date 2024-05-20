@@ -29,34 +29,7 @@ class Manage_data():
         no_of_images= len(list(image_dir.glob('*.jpg')))
         return no_of_images
     
-    def parse_function(self, filename, label):
-        image_string = tf.io.read_file(filename)
-        image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-        image_resized = tf.image.resize(image_decoded, [480, 640])  # Adjust size as needed
-        return image_resized, label
-
     
-    def load_data(self, data_dir, no_of_samples = 50):
-        file_paths = []
-        image_paths = []
-        y = []
-        window_size = 5
-        for obj_id in range(no_of_samples):
-            no_of_images = self.find_no_of_images(obj_id)
-            if no_of_images < 40:
-                continue
-            
-            csv_path = os.path.join(data_dir, str(obj_id),'slip_log.csv')
-            label = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
-            y.append(label)
-            for img_id in range(no_of_images):
-                image_path = os.path.join(data_dir, str(obj_id), str(img_id)+ '.jpg')
-                file_paths.append(image_path)
-
-        y = np.concatenate(y)
-        y = np.array(y)
-        file_paths = np.array(file_paths)
-        return file_paths, y
 
     def parse_function_sequential(self, filenames, label):
         images = []
@@ -127,13 +100,6 @@ class Manage_data():
         dataset = dataset.batch(32)  # Adjust batch size as needed
         self.dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
-    def create_dataset(self):
-        file_paths, labels = self.load_data(self.data_dir)
-        dataset = tf.data.Dataset.from_tensor_slices((file_paths, labels))
-        dataset = dataset.map(self.parse_function, num_parallel_calls=tf.data.AUTOTUNE)
-        batch_size = 32  # Adjust batch size as needed
-        dataset = dataset.batch(batch_size)
-        self.dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
     def split_dataset(self, file_paths):
         dataset_size = len(file_paths)
