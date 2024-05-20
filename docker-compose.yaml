@@ -1,0 +1,29 @@
+version: '3.8'
+name: slip_detect
+services:
+  deep:
+    build:
+      context: .
+    # stdin_open: true
+    # The lines needed to deploy grapical application are marked as 1 
+    environment:
+      # - DISPLAY=:0 
+        # XAUTHORITY:/root/.Xauthority
+        #1
+        DISPLAY: $DISPLAY
+        QT_X11_NO_MITSHM: '1'
+        NVIDIA_VISIBLE_DEVICES: all
+        NVIDIA_DRIVER_CAPABILITIES: compute,video,utility,graphics
+    privileged: true
+        #1
+    volumes:
+      #1
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /home/tejas/.Xauthority:/root/.Xauthority
+      - ./code:/app/code
+      - /home/rag-tt/workspace/tactile_images:/app/tactile_images
+    tty: true
+    stdin_open: true
+    network_mode: host
+    #1=to allow docker container graphical capability
+    command: bash -c "tail -f /dev/null"
