@@ -41,7 +41,7 @@ class Manage_data():
         image_paths = []
         sequential_image_paths = []
         y = []
-        window_size = tune.sequence_of_image
+        window_size = tune.sequence_of_images
         for obj_id in range(no_of_samples):
             no_of_images = self.find_no_of_images(obj_id)
             csv_path = os.path.join(self.data_dir, str(obj_id),'slip_log.csv')
@@ -50,13 +50,13 @@ class Manage_data():
             
             
             label = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
-            y.append(label[:-(tune.sequence_of_image-1)])
+            y.append(label[:-(tune.sequence_of_images-1)])
             
             for img_id in range(no_of_images):
                 image_path = os.path.join(self.data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
-            for i in range(0, len(image_paths) - (tune.sequence_of_image-1)):  # Ensuring sequences of 5 images
-                row = image_paths[i:i+tune.sequence_of_image]
+            for i in range(0, len(image_paths) - (tune.sequence_of_images-1)):  # Ensuring sequences of 5 images
+                row = image_paths[i:i+tune.sequence_of_images]
                 sequential_image_paths.append(row)
             image_paths = []
 
@@ -127,7 +127,7 @@ class Manage_data():
 
         def wrapped_parse_function(filenames, label):
             images, label = tf.py_function(func=self.parse_function_vgg, inp=[filenames, label], Tout=[tf.float32, tf.int64])
-            images.set_shape((5, 224, 224, 3))  # Explicitly set the shape
+            images.set_shape((tune.sequence_of_images, 224, 224, 3))  # Explicitly set the shape
             label.set_shape([])  # Explicitly set the shape for the label
             return images, label
  
@@ -164,15 +164,15 @@ class create_network():
         
         # Define LSTM model
         lstm_model = Sequential([
-            LSTM(64,input_shape=(tune.sequence_of_image, 144768),kernel_regularizer=l1(tune.regularizaion_const) ),
+            LSTM(64,input_shape=(tune.sequence_of_images, 144768),kernel_regularizer=l1(tune.regularizaion_const) ),
             Dense(8, activation='relu', kernel_regularizer=l1(tune.regularizaion_const)),
             Dense(1, activation='sigmoid'),
         ])
 
         # Combine CNN and LSTM models
         self.model = Sequential([
-            TimeDistributed(cnn_model, input_shape=(tune.sequence_of_image, 480, 640, 3)),  # Apply CNN to each frame in the sequence
-            (Reshape((5,144768))),
+            TimeDistributed(cnn_model, input_shape=(tune.sequence_of_images, 480, 640, 3)),  # Apply CNN to each frame in the sequence
+            (Reshape((tune.sequence_of_images,144768))),
             lstm_model,
         ])
         self.model.summary()
@@ -208,7 +208,7 @@ class create_network():
         #25088 is the output of vff_model_flatten
         # Define LSTM model
         lstm_model = Sequential([
-            LSTM(64, input_shape=(tune.sequence_of_image, tune.dense_neurons1)),
+            LSTM(64, input_shape=(tune.sequence_of_images, tune.dense_neurons1)),
             Dropout(tune.dropout2),  # Dropout layer to prevent overfitting
             Dense(tune.dense_neurons2, activation='relu'),
             Dropout(tune.dropout3),
@@ -217,8 +217,8 @@ class create_network():
 
         # Combine CNN and LSTM models
         self.model = Sequential([
-            TimeDistributed(vgg_model_flatten, input_shape=(tune.sequence_of_image, 224, 224, 3)),  # Apply CNN to each frame in the sequence
-            (Reshape((5,tune.dense_neurons1))),
+            TimeDistributed(vgg_model_flatten, input_shape=(tune.sequence_of_images, 224, 224, 3)),  # Apply CNN to each frame in the sequence
+            (Reshape((tune.sequence_of_images,tune.dense_neurons1))),
             lstm_model,
         ])
         vgg_model.summary()
@@ -279,11 +279,11 @@ class AccuracyHistory(Callback):
         self.vgg_layers = []
         self.other_param = []
         
-    def on_epoch_end(self, epoch, logs=None):
+    def on_epoch_end(self, epoch, logs={'accuracy':0,'val_accuracy':0}):
         self.epoch_count.append(epoch + 1)
         self.train_accuracy.append(logs.get('accuracy'))
         self.val_accuracy.append(logs.get('val_accuracy'))
-        self.sequence_of_image.append(tune.sequence_of_image)
+        self.sequence_of_image.append(tune.sequence_of_images)
         self.learning_rate.append(tune.learning_rate)
         self.reshuffle.append(tune.reshuffle)
         self.dropout1.append(tune.dropout1)
@@ -336,13 +336,13 @@ class AccuracyHistory(Callback):
         
 class tuning():
     def __init__(self):
-        self.sequence_of_image_array = [5,6,8,9,10]
+        self.sequence_of_image_array = [6,8,9,10]
         self.learning_rate_array = [0.00005,0.00003, 0.00004, 0.00001,0.0000008, 0.000006 ]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
         self.dense_neurons2_array = [8, 16, 32]
         self.vgg_layers_array= [7,11,15,19]
-        self.sequence_of_image =  self.sequence_of_image_array[0]
+        self.sequence_of_images =  self.sequence_of_image_array[0]
         self.learning_rate = self.learning_rate_array[1]
         self.reshuffle =  self.reshuffle_array[0]
         self.dropout1 = 0.5
@@ -356,7 +356,7 @@ class tuning():
         self.csv_id = 0
         self.no_of_samples = 100
         self.epochs = 50
-        self.vgg_layers = 7
+        self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         
     def start_training(self):
@@ -367,6 +367,13 @@ class tuning():
             manage_data.shuffle_train_file_paths()
             manage_data.create_split_datasets()
             network.vgg_lstm()
+            
+            #print the tuning parametrs before training
+            accuracy_history.on_epoch_end(0)
+            df = accuracy_history.create_accuracy_dataframe()
+            # Transpose the DataFrame
+            df_transposed = df.transpose()
+            print(df_transposed)
             network.train(manage_data.train_dataset, manage_data.val_dataset)
         
         # Ensure accuracy data is saved even if training is interrupted 
@@ -378,16 +385,11 @@ class tuning():
             accuracy_history.save_to_csv(accuracy_df)
             accuracy_history.reset_dict()                    
     def Tune(self):
-        for value in self.vgg_layers_array:
-            self.vgg_layers = value           
-            self.start_training()
-        self.vgg_layers = 19
-        
    
         for value in self.sequence_of_image_array:
-            self.sequence_of_image = value           
+            self.sequence_of_images = value           
             self.start_training()
-        self.sequence_of_image = 5
+        self.sequence_of_images = 5
         
 
 def list_subdirectories(directory):
