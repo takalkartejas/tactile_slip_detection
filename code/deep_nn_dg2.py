@@ -24,7 +24,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 import datetime
 from tensorflow.keras.callbacks import Callback
 
-
+print('gpu config',tf.config.list_physical_devices('GPU'))
 class Manage_data():
     def __init__(self):
         data_dir='D:/rag-tt/tactile_images'
@@ -339,7 +339,7 @@ class tuning():
         self.sequence_of_image_array = [6,8,9,10]
         self.learning_rate_array = [0.00005,0.00003, 0.00004, 0.00001,0.0000008, 0.000006 ]
         self.reshuffle_array=[False, True]
-        self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
+        self.regularization_constant_array = [0.01, 0.1, 0.3, 0.5, 0.7]
         self.dense_neurons2_array = [8, 16, 32]
         self.vgg_layers_array= [7,11,15,19]
         self.sequence_of_images =  self.sequence_of_image_array[0]
@@ -354,8 +354,8 @@ class tuning():
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
-        self.no_of_samples = 100
-        self.epochs = 50
+        self.no_of_samples = 2000
+        self.epochs = 45
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         
@@ -386,10 +386,10 @@ class tuning():
             accuracy_history.reset_dict()                    
     def Tune(self):
    
-        for value in self.sequence_of_image_array:
-            self.sequence_of_images = value           
+        for value in self.regularization_constant_array:
+            self.regularization_constant = value           
             self.start_training()
-        self.sequence_of_images = 5
+        self.regularization_constant = 0.001
         
 
 def list_subdirectories(directory):
