@@ -36,6 +36,57 @@ class Manage_data():
         no_of_images= len(list(image_dir.glob('*.jpg')))
         return no_of_images
     
+    def balance_data(self, label, image_paths):
+        # Ensure label and image_paths are numpy arrays
+        label = np.array(label)
+        image_paths = np.array(image_paths)
+        
+        # Count the total number of zeroes in label
+        total_zeroes = np.sum(label == 0)
+        
+        # Determine the number of zeroes to remove
+        zeroes_to_remove = max(0, total_zeroes - tune.no_of_nonslip_data)
+        
+        # Indices of zero elements
+        zero_indices = np.where(label == 0)[0]
+        
+        # Indices to keep (last self.no_of_nonslip_data zeroes and all ones)
+        indices_to_keep = np.concatenate((zero_indices[-tune.no_of_nonslip_data:], np.where(label != 0)[0]))
+        indices_to_keep = np.unique(indices_to_keep)
+        indices_to_keep = np.sort(indices_to_keep)
+        
+        # Create the resulting label array
+        new_label = label[indices_to_keep]
+        
+        # Remove the same number of elements from the start of image_paths
+        new_image_paths = image_paths[zeroes_to_remove:]
+        # print('label', label.shape)
+        # print('image_paths', image_paths.shape)
+        # print('new_label', new_label.shape)
+        # print('new_image_paths', new_image_paths.shape)
+        return new_label, new_image_paths
+    
+    def check_pattern(self,label):
+        # Ensure arr is a numpy array
+        label = np.array(label)
+        
+        # Find the first occurrence of 1
+        first_one_index = np.argmax(label == 1)
+        
+        if np.all(label == 0):  # If there's no 1 in the array, ensure all are 0
+            return
+        
+        # Check if there's no 1 in the array
+        if np.max(label) == 0:
+            assert np.all(label == 0), "Array does not follow the pattern: continuous zeroes followed by continuous ones"
+            return
+        
+        # Assert all elements before first_one_index are 0
+        assert np.all(label[:first_one_index] == 0), "Array does not follow the pattern: continuous zeroes followed by continuous ones"
+        
+        # Assert all elements from first_one_index to the end are 1
+        assert np.all(label[first_one_index:] == 1), "Array does not follow the pattern: continuous zeroes followed by continuous ones"
+    
     def load_data(self, no_of_samples = 600):
         file_paths = []
         image_paths = []
@@ -50,11 +101,16 @@ class Manage_data():
             
             
             label = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
-            y.append(label[:-(tune.sequence_of_images-1)])
+            
             
             for img_id in range(no_of_images):
                 image_path = os.path.join(self.data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
+            self.check_pattern(label)
+            self.balance_data(label, image_paths)
+            label, image_paths = self.balance_data(label,image_paths)    
+            y.append(label[:-(tune.sequence_of_images-1)])
+            
             for i in range(0, len(image_paths) - (tune.sequence_of_images-1)):  # Ensuring sequences of 5 images
                 row = image_paths[i:i+tune.sequence_of_images]
                 sequential_image_paths.append(row)
@@ -258,7 +314,7 @@ class AccuracyHistory(Callback):
         self.epochs  = []
         self.vgg_layers = []
         self.other_param = []
-                
+        self.no_of_nonslip_data = []        
     def reset_dict(self):
         self.epoch_count = []
         self.train_accuracy = []
@@ -278,6 +334,7 @@ class AccuracyHistory(Callback):
         self.epochs  = []
         self.vgg_layers = []
         self.other_param = []
+        self.no_of_nonslip_data = []
         
     def on_epoch_end(self, epoch, logs={'accuracy':0,'val_accuracy':0}):
         self.epoch_count.append(epoch + 1)
@@ -298,6 +355,7 @@ class AccuracyHistory(Callback):
         self.epochs.append(tune.epochs )
         self.vgg_layers.append(tune.vgg_layers)
         self.other_param.append(tune.other_param)
+        self.no_of_nonslip_data.append(tune.no_of_nonslip_data)
         
     def create_accuracy_dataframe(self):
         accuracy_df = pd.DataFrame({
@@ -318,7 +376,8 @@ class AccuracyHistory(Callback):
             'no_of_samples':self.no_of_samples,
             'epochs':self.epochs, 
             'vgg_layers':self.vgg_layers,
-            'other_param':self.other_param
+            'other_param':self.other_param,
+            'no_of_nonslip_data':self.no_of_nonslip_data
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -358,6 +417,7 @@ class tuning():
         self.epochs = 50
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
+        self.no_of_nonslip_data = 8
         
     def start_training(self):
         try:
