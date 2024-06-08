@@ -87,6 +87,19 @@ class Manage_data():
         # Assert all elements from first_one_index to the end are 1
         assert np.all(label[first_one_index:] == 1), "Array does not follow the pattern: continuous zeroes followed by continuous ones"
     
+    def create_slip_instant_labels(self, csv_path):
+        label = []
+        slip_values = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=2, dtype=None, encoding=None)
+        for slip_value in slip_values:
+            if slip_value < tune.slip_instant_labels:
+                label.append(0)
+            else:
+                label.append(1)
+        return label
+            
+            
+            
+        
     def load_data(self, no_of_samples = 600):
         file_paths = []
         image_paths = []
@@ -100,14 +113,16 @@ class Manage_data():
                 continue
             
             
-            label = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
+            label2 = self.create_slip_instant_labels(csv_path)
+            label = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
             for img_id in range(no_of_images):
                 image_path = os.path.join(self.data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
             self.check_pattern(label)
             self.balance_data(label, image_paths)
+            
             label, image_paths = self.balance_data(label,image_paths)    
             y.append(label[:-(tune.sequence_of_images-1)])
             
@@ -314,7 +329,9 @@ class AccuracyHistory(Callback):
         self.epochs  = []
         self.vgg_layers = []
         self.other_param = []
-        self.no_of_nonslip_data = []        
+        self.no_of_nonslip_data = []   
+        self.slip_instant_labels = []
+             
     def reset_dict(self):
         self.epoch_count = []
         self.train_accuracy = []
@@ -335,6 +352,7 @@ class AccuracyHistory(Callback):
         self.vgg_layers = []
         self.other_param = []
         self.no_of_nonslip_data = []
+        self.slip_instant_labels = [] 
         
     def on_epoch_end(self, epoch, logs={'accuracy':0,'val_accuracy':0}):
         self.epoch_count.append(epoch + 1)
@@ -356,6 +374,7 @@ class AccuracyHistory(Callback):
         self.vgg_layers.append(tune.vgg_layers)
         self.other_param.append(tune.other_param)
         self.no_of_nonslip_data.append(tune.no_of_nonslip_data)
+        self.slip_instant_labels.append(tune.slip_instant_labels)
         
     def create_accuracy_dataframe(self):
         accuracy_df = pd.DataFrame({
@@ -377,7 +396,8 @@ class AccuracyHistory(Callback):
             'epochs':self.epochs, 
             'vgg_layers':self.vgg_layers,
             'other_param':self.other_param,
-            'no_of_nonslip_data':self.no_of_nonslip_data
+            'no_of_nonslip_data':self.no_of_nonslip_data,
+            'slip_instant_labels':self.slip_instant_labels
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -418,6 +438,7 @@ class tuning():
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         self.no_of_nonslip_data = 8
+        self.slip_instant_labels = 0.001
         
     def start_training(self):
         try:
