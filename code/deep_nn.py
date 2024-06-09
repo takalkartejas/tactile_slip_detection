@@ -300,7 +300,7 @@ class create_network():
     def train(self, train_dataset, val_dataset):
         cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
             # EarlyStopping callback to stop training when validation accuracy stops improving
-        es = EarlyStopping(monitor='val_accuracy', patience=10, restore_best_weights=True)
+        es = EarlyStopping(monitor='val_accuracy', patience=6, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensor board
         tb= tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)

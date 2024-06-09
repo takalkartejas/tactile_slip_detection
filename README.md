@@ -120,3 +120,4 @@ Train_acc = 90%, val_acc = 55%
      self.slip_instant_labels = 0.001
 
 4. self.no_of_nonslip_data = ***30***, the predictions are more distributed but lot of 0s predicted as 1s, refer deep_nn_evaluate19.ipynb
+5. self.no_of_nonslip_data = ***200***, 0s are predicted incorrectly which might be due to abrubtly selected threshold value 0.003,1s are better predicted refer deep_nn_evaluate20.ipynb
