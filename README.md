@@ -118,3 +118,5 @@ Train_acc = 90%, val_acc = 55%
      self.other_param='additional cnn + global average'
      self.no_of_nonslip_data = ***8***
      self.slip_instant_labels = 0.001
+
+4. self.no_of_nonslip_data = ***30***, the predictions are more distributed but lot of 0s predicted as 1s, refer deep_nn_evaluate19.ipynb

@@ -1,3 +1,4 @@
+import seaborn as sn
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
@@ -299,7 +300,7 @@ class create_network():
     def train(self, train_dataset, val_dataset):
         cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
             # EarlyStopping callback to stop training when validation accuracy stops improving
-        es = EarlyStopping(monitor='val_accuracy', patience=30, restore_best_weights=True)
+        es = EarlyStopping(monitor='val_accuracy', patience=10, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensor board
         tb= tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -437,8 +438,8 @@ class tuning():
         self.epochs = 50
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
-        self.no_of_nonslip_data = 30
-        self.slip_instant_labels = 0.001
+        self.no_of_nonslip_data = 200
+        self.slip_instant_labels = 0.003
         
     def start_training(self):
         try:
