@@ -437,7 +437,7 @@ class tuning():
         self.epochs = 50
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
-        self.no_of_nonslip_data = 8
+        self.no_of_nonslip_data = 30
         self.slip_instant_labels = 0.001
         
     def start_training(self):
