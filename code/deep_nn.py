@@ -37,7 +37,7 @@ class Manage_data():
         no_of_images= len(list(image_dir.glob('*.jpg')))
         return no_of_images
     
-    def balance_data(self, label, image_paths):
+    def set_treshold_values(self, label, image_paths, csv_path):
         # Ensure label and image_paths are numpy arrays
         label = np.array(label)
         image_paths = np.array(image_paths)
@@ -57,15 +57,27 @@ class Manage_data():
         indices_to_keep = np.sort(indices_to_keep)
         
         # Create the resulting label array
-        new_label = label[indices_to_keep]
+        label_with_few_zeroes = label[indices_to_keep]
         
         # Remove the same number of elements from the start of image_paths
-        new_image_paths = image_paths[zeroes_to_remove:]
-        # print('label', label.shape)
-        # print('image_paths', image_paths.shape)
-        # print('new_label', new_label.shape)
-        # print('new_image_paths', new_image_paths.shape)
-        return new_label, new_image_paths
+        paths_with_few_zeroes = image_paths[zeroes_to_remove:]
+        
+        trimmed_labels = []
+        trimmed_paths = []
+        slip_values = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=2, dtype=None, encoding=None)
+        i = 0
+        for slip_value in slip_values:
+            if slip_value < tune.max_labels:
+                trimmed_labels.append(label_with_few_zeroes[i])
+                trimmed_paths.append(paths_with_few_zeroes[i])
+            i += 1
+        trimmed_labels = np.array(trimmed_labels)
+        trimmed_paths = np.array(trimmed_paths)
+        # print('label_with_few_zeroes =', label_with_few_zeroes.shape)
+        # print('paths_with_few_zeroes=', paths_with_few_zeroes.shape)
+        # print('trimmed_labels=', trimmed_labels.shape)
+        # print('trimed_paths=', trimmed_paths.shape)
+        return trimmed_labels, trimmed_paths
     
     def check_pattern(self,label):
         # Ensure arr is a numpy array
@@ -97,10 +109,43 @@ class Manage_data():
             else:
                 label.append(1)
         return label
+ 
+    def duplicate_n_balance_data(self, labels, image_paths):
+        # Convert labels to numpy array for easier manipulation
+        labels = np.array(labels)
+        image_paths = np.array(image_paths)
+
+        # Get indices of each class
+        class_0_indices = np.where(labels == 0)[0]
+        class_1_indices = np.where(labels == 1)[0]
+            # Check if either class is empty
+        if len(class_0_indices) == 0 or len(class_1_indices) == 0:
+            print(f"Skipping balancing for {labels} as one of the classes is missing")
+            return labels, image_paths
+    
+        # Calculate the difference in the number of samples
+        diff = len(class_0_indices) - len(class_1_indices)
+
+        if diff > 0:  # More 0s than 1s
+            # Randomly duplicate class 1 samples to balance the dataset
+            additional_indices = np.random.choice(class_1_indices, size=diff, replace=True)
+            labels = np.concatenate([labels, labels[additional_indices]])
+            image_paths = np.concatenate([image_paths, image_paths[additional_indices]])
+        elif diff < 0:  # More 1s than 0s
+            # Randomly duplicate class 0 samples to balance the dataset
+            additional_indices = np.random.choice(class_0_indices, size=-diff, replace=True)
+            labels = np.concatenate([labels, labels[additional_indices]])
+            image_paths = np.concatenate([image_paths, image_paths[additional_indices]])
+        print('labels=', labels)
+        # # Shuffle the dataset to mix the duplicated samples
+        # shuffle_indices = np.arange(len(labels))
+        # np.random.shuffle(shuffle_indices)
+        # labels = labels[shuffle_indices]
+        # image_paths = image_paths[shuffle_indices]
+
+        return labels, image_paths           
             
             
-            
-        
     def load_data(self, no_of_samples = 600):
         file_paths = []
         image_paths = []
@@ -113,18 +158,16 @@ class Manage_data():
             if no_of_images < 40 or not os.path.exists(csv_path):
                 continue
             
-            
-            
-            label2 = self.create_slip_instant_labels(csv_path)
-            label = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
+            label = self.create_slip_instant_labels(csv_path)
+            label2 = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
             for img_id in range(no_of_images):
                 image_path = os.path.join(self.data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
             self.check_pattern(label)
-            self.balance_data(label, image_paths)
             
-            label, image_paths = self.balance_data(label,image_paths)    
+            label, image_paths = self.set_treshold_values(label,image_paths,csv_path)    
+            label, image_paths = self.duplicate_n_balance_data(label, image_paths)
             y.append(label[:-(tune.sequence_of_images-1)])
             
             for i in range(0, len(image_paths) - (tune.sequence_of_images-1)):  # Ensuring sequences of 5 images
@@ -332,6 +375,7 @@ class AccuracyHistory(Callback):
         self.other_param = []
         self.no_of_nonslip_data = []   
         self.slip_instant_labels = []
+        self.max_labels = []
              
     def reset_dict(self):
         self.epoch_count = []
@@ -354,6 +398,7 @@ class AccuracyHistory(Callback):
         self.other_param = []
         self.no_of_nonslip_data = []
         self.slip_instant_labels = [] 
+        self.max_labels = []
         
     def on_epoch_end(self, epoch, logs={'accuracy':0,'val_accuracy':0}):
         self.epoch_count.append(epoch + 1)
@@ -376,6 +421,7 @@ class AccuracyHistory(Callback):
         self.other_param.append(tune.other_param)
         self.no_of_nonslip_data.append(tune.no_of_nonslip_data)
         self.slip_instant_labels.append(tune.slip_instant_labels)
+        self.max_labels.append(tune.max_labels)
         
     def create_accuracy_dataframe(self):
         accuracy_df = pd.DataFrame({
@@ -398,7 +444,8 @@ class AccuracyHistory(Callback):
             'vgg_layers':self.vgg_layers,
             'other_param':self.other_param,
             'no_of_nonslip_data':self.no_of_nonslip_data,
-            'slip_instant_labels':self.slip_instant_labels
+            'slip_instant_labels':self.slip_instant_labels,
+            'max_labels':self.max_labels
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -434,12 +481,13 @@ class tuning():
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
-        self.no_of_samples = 100
+        self.no_of_samples = 400
         self.epochs = 50
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         self.no_of_nonslip_data = 200
-        self.slip_instant_labels = 0.003
+        self.slip_instant_labels = 0.0001
+        self.max_labels = 0.2
         
     def start_training(self):
         try:
