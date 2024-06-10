@@ -24,6 +24,7 @@ from tensorflow.keras.applications.vgg16 import preprocess_input
 from tensorflow.keras.callbacks import EarlyStopping
 import datetime
 from tensorflow.keras.callbacks import Callback
+from sklearn.metrics import confusion_matrix, f1_score
 
 
 class Manage_data():
@@ -136,7 +137,6 @@ class Manage_data():
             additional_indices = np.random.choice(class_0_indices, size=-diff, replace=True)
             labels = np.concatenate([labels, labels[additional_indices]])
             image_paths = np.concatenate([image_paths, image_paths[additional_indices]])
-        print('labels=', labels)
         # # Shuffle the dataset to mix the duplicated samples
         # shuffle_indices = np.arange(len(labels))
         # np.random.shuffle(shuffle_indices)
@@ -343,39 +343,49 @@ class create_network():
     def train(self, train_dataset, val_dataset):
         cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
             # EarlyStopping callback to stop training when validation accuracy stops improving
-        es = EarlyStopping(monitor='val_accuracy', patience=6, restore_best_weights=True)
+        es = EarlyStopping(monitor='val_accuracy', patience=30, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensor board
         tb= tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
                 # Shuffle training dataset before each epoch
         # train_dataset_shuffled = train_dataset.shuffle(buffer_size=train_dataset.cardinality(), reshuffle_each_iteration=tune.reshuffle)
-        self.model.compile(loss=BinaryCrossentropy(), optimizer=Adam(learning_rate=tune.learning_rate),metrics=['accuracy'])
-        self.model.fit(train_dataset,validation_data=val_dataset, epochs=tune.epochs, callbacks=[cp,es,accuracy_history])
+        self.model.compile(loss=BinaryCrossentropy(), optimizer=Adam(learning_rate=tune.learning_rate),metrics=['accuracy', true_positives, false_positives, true_negatives, false_negatives])
+        self.model.fit(train_dataset,validation_data=val_dataset, epochs=tune.epochs, callbacks=[cp,es,accuracy_history], verbose =2)
         
 class AccuracyHistory(Callback):
     def __init__(self):
         super().__init__()
-        self.epoch_count = []
-        self.train_accuracy = []
-        self.val_accuracy = []
-        self.sequence_of_image = []
-        self.learning_rate = []
-        self.reshuffle =  []
-        self.dropout1 = []
-        self.dropout2 = []
-        self.dropout3 = []
-        self.dropout4 = []
-        self.regularization_constant = []
-        self.batch_size = []
-        self.dense_neurons1 =[]
-        self.dense_neurons2 =[]
-        self.no_of_samples = []
-        self.epochs  = []
-        self.vgg_layers = []
-        self.other_param = []
-        self.no_of_nonslip_data = []   
-        self.slip_instant_labels = []
-        self.max_labels = []
+        # self.epoch_count = []
+        # self.train_accuracy = []
+        # self.val_accuracy = []
+        # self.sequence_of_image = []
+        # self.learning_rate = []
+        # self.reshuffle =  []
+        # self.dropout1 = []
+        # self.dropout2 = []
+        # self.dropout3 = []
+        # self.dropout4 = []
+        # self.regularization_constant = []
+        # self.batch_size = []
+        # self.dense_neurons1 =[]
+        # self.dense_neurons2 =[]
+        # self.no_of_samples = []
+        # self.epochs  = []
+        # self.vgg_layers = []
+        # self.other_param = []
+        # self.no_of_nonslip_data = []   
+        # self.slip_instant_labels = []
+        # self.max_labels = []
+        # self.tp = []
+        # self.tn = []
+        # self.fp = []
+        # self.fn = []
+        # self.tpr = []
+        # self.tnr = []
+        # self.fnr = []
+        # self.f1 = []
+        # self.validation_data = None  
+        self.reset_dict()
              
     def reset_dict(self):
         self.epoch_count = []
@@ -399,8 +409,42 @@ class AccuracyHistory(Callback):
         self.no_of_nonslip_data = []
         self.slip_instant_labels = [] 
         self.max_labels = []
+        self.tp = []
+        self.tn = []
+        self.fp = []
+        self.fn = []
+        self.tpr = []
+        self.tnr = []
+        self.fnr = []
+        self.f1 = []
+        self.validation_data = None  
+       
+    def set_model(self, model):
+        self.model = model
+        if hasattr(self.model, 'validation_data') and self.model.validation_data:
+            self.validation_data = (self.model.validation_data[0], self.model.validation_data[1])
+        else:
+            print("Validation data is not available at the start of training.")    
+     
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            logs = {'accuracy': 0, 'val_accuracy': 0,'true_positives':0,'true_negatives':0,'false_positives':0,'false_negatives':0 }
         
-    def on_epoch_end(self, epoch, logs={'accuracy':0,'val_accuracy':0}):
+
+        tp = logs.get('true_positives')
+        tn = logs.get('true_negatives')
+        fp = logs.get('false_positives')
+        fn = logs.get('false_negatives')
+
+
+        # Compute TPR, TNR, and F1 score
+        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
+        tnr = tn / (tn + fp) if (tn + fp) > 0 else 0
+        fnr = fn / (fn + tp) if (fn + tp) > 0 else 0
+        f1 =  (tp + tn) /(tn + fp + fn + tp) if (tn + fp + fn + tp) > 0 else 0
+        # print('tp= ',tp,'tn= ',tn,'fp= ',fp,'fn= ',fn)
+        # print('tpr= ',tpr,'fnr= ',fnr,'f1= ',f1)
+
         self.epoch_count.append(epoch + 1)
         self.train_accuracy.append(logs.get('accuracy'))
         self.val_accuracy.append(logs.get('val_accuracy'))
@@ -422,6 +466,14 @@ class AccuracyHistory(Callback):
         self.no_of_nonslip_data.append(tune.no_of_nonslip_data)
         self.slip_instant_labels.append(tune.slip_instant_labels)
         self.max_labels.append(tune.max_labels)
+        self.tp.append(tp)
+        self.tn.append(tn)
+        self.fp.append(fp)
+        self.fn.append(fn)
+        self.tpr.append(tpr)
+        self.fnr.append(fnr)
+        self.f1.append(f1)
+
         
     def create_accuracy_dataframe(self):
         accuracy_df = pd.DataFrame({
@@ -445,7 +497,14 @@ class AccuracyHistory(Callback):
             'other_param':self.other_param,
             'no_of_nonslip_data':self.no_of_nonslip_data,
             'slip_instant_labels':self.slip_instant_labels,
-            'max_labels':self.max_labels
+            'max_labels':self.max_labels,
+            'tp':self.tp,
+            'tn':self.tn,
+            'fp':self.fp,
+            'fn':self.fn,
+            'tpr':self.tpr,
+            'fnr':self.fnr,
+            'f1':self.f1
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -481,8 +540,8 @@ class tuning():
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
-        self.no_of_samples = 400
-        self.epochs = 50
+        self.no_of_samples = 450
+        self.epochs = 40
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         self.no_of_nonslip_data = 200
@@ -521,6 +580,25 @@ class tuning():
             self.start_training()
         self.sequence_of_images = 5
         
+def true_positives(y_true, y_pred):
+    y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
+    tp = tf.reduce_sum(tf.cast(y_true * y_pred, 'float'), axis=0)
+    return tp
+
+def true_negatives(y_true, y_pred):
+    y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
+    tn = tf.reduce_sum(tf.cast((1 - y_true) * (1 - y_pred), 'float'), axis=0)
+    return tn
+
+def false_positives(y_true, y_pred):
+    y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
+    fp = tf.reduce_sum(tf.cast((1 - y_true) * y_pred, 'float'), axis=0)
+    return fp
+
+def false_negatives(y_true, y_pred):
+    y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
+    fn = tf.reduce_sum(tf.cast(y_true * (1 - y_pred), 'float'), axis=0)
+    return fn
 
 def list_subdirectories(directory):
     try:

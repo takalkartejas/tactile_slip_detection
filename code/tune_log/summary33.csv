@@ -1,0 +1,14 @@
+Epoch,Train_Accuracy,Val_Accuracy,Sequence_of_Image,Learning_Rate,Reshuffle,Dropout1,Dropout2,Dropout3,Dropout4,Regularization_Constant,Batch_Size,dense_neurons1,dense_neurons2,no_of_samples,epochs,vgg_layers,other_param,no_of_nonslip_data,slip_instant_labels,max_labels
+1,0.0,0.0,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+1,0.5452898740768433,0.43551796674728394,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+2,0.5935990214347839,0.5158562660217285,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+3,0.6310386657714844,0.6913319230079651,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+4,0.6739130616188049,0.7103593945503235,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+5,0.7035024166107178,0.6723044514656067,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+6,0.7101449370384216,0.7188160419464111,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+7,0.7602657079696655,0.6723044514656067,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+8,0.7856280207633972,0.6701902747154236,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+9,0.8230676054954529,0.6448202729225159,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+10,0.8031401038169861,0.6427061557769775,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+11,0.8073671460151672,0.6279069781303406,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
+12,0.8484299778938293,0.6342494487762451,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,10,40,19,additional cnn + global average,200,0.0001,0.2
