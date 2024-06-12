@@ -343,7 +343,7 @@ class create_network():
     def train(self, train_dataset, val_dataset):
         cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
             # EarlyStopping callback to stop training when validation accuracy stops improving
-        es = EarlyStopping(monitor='val_accuracy', patience=30, restore_best_weights=True)
+        es = EarlyStopping(monitor='val_accuracy', patience=8, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensor board
         tb= tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -355,36 +355,6 @@ class create_network():
 class AccuracyHistory(Callback):
     def __init__(self):
         super().__init__()
-        # self.epoch_count = []
-        # self.train_accuracy = []
-        # self.val_accuracy = []
-        # self.sequence_of_image = []
-        # self.learning_rate = []
-        # self.reshuffle =  []
-        # self.dropout1 = []
-        # self.dropout2 = []
-        # self.dropout3 = []
-        # self.dropout4 = []
-        # self.regularization_constant = []
-        # self.batch_size = []
-        # self.dense_neurons1 =[]
-        # self.dense_neurons2 =[]
-        # self.no_of_samples = []
-        # self.epochs  = []
-        # self.vgg_layers = []
-        # self.other_param = []
-        # self.no_of_nonslip_data = []   
-        # self.slip_instant_labels = []
-        # self.max_labels = []
-        # self.tp = []
-        # self.tn = []
-        # self.fp = []
-        # self.fn = []
-        # self.tpr = []
-        # self.tnr = []
-        # self.fnr = []
-        # self.f1 = []
-        # self.validation_data = None  
         self.reset_dict()
              
     def reset_dict(self):
@@ -522,7 +492,7 @@ class AccuracyHistory(Callback):
         
 class tuning():
     def __init__(self):
-        self.sequence_of_image_array = [6,8,9,10]
+        self.sequence_of_image_array = [8,9,10]
         self.learning_rate_array = [0.00005,0.00003, 0.00004, 0.00001,0.0000008, 0.000006 ]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
