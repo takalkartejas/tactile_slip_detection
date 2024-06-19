@@ -1,3 +1,7 @@
+import os
+# Set the environment variable to use only the GPU with ID 1 (GTX 1080 Ti)
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 import seaborn as sn
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +33,7 @@ from sklearn.metrics import confusion_matrix, f1_score
 
 class Manage_data():
     def __init__(self):
-        data_dir='/mnt/data/rag-tt/tactile_images/'
+        data_dir='/mnt/storage/home/rag-tt/tactile_images/'
         self.data_dir= pathlib.Path(data_dir)
         
     def find_no_of_images(self, obj_id):
@@ -121,7 +125,7 @@ class Manage_data():
         class_1_indices = np.where(labels == 1)[0]
             # Check if either class is empty
         if len(class_0_indices) == 0 or len(class_1_indices) == 0:
-            print(f"Skipping balancing for {labels} as one of the classes is missing")
+            # print(f"Skipping balancing for {labels} as one of the classes is missing")
             return labels, image_paths
     
         # Calculate the difference in the number of samples
@@ -157,7 +161,6 @@ class Manage_data():
             csv_path = os.path.join(self.data_dir, str(obj_id),'slip_log.csv')
             if no_of_images < 40 or not os.path.exists(csv_path):
                 continue
-            
             label = self.create_slip_instant_labels(csv_path)
             label2 = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
@@ -241,7 +244,7 @@ class Manage_data():
         
 
         def wrapped_parse_function(filenames, label):
-            images, label = tf.py_function(func=self.parse_function_vgg, inp=[filenames, label], Tout=[tf.float32, tf.int64])
+            images, label = tf.py_function(func=self.parse_function_vgg, inp=[filenames, label], Tout=[tf.float32, tf.float64])
             images.set_shape((tune.sequence_of_images, 224, 224, 3))  # Explicitly set the shape
             label.set_shape([])  # Explicitly set the shape for the label
             return images, label
@@ -343,14 +346,14 @@ class create_network():
     def train(self, train_dataset, val_dataset):
         cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
             # EarlyStopping callback to stop training when validation accuracy stops improving
-        es = EarlyStopping(monitor='val_accuracy', patience=8, restore_best_weights=True)
+        es = EarlyStopping(monitor='val_accuracy', patience=2, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensor board
         tb= tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
                 # Shuffle training dataset before each epoch
         # train_dataset_shuffled = train_dataset.shuffle(buffer_size=train_dataset.cardinality(), reshuffle_each_iteration=tune.reshuffle)
         self.model.compile(loss=BinaryCrossentropy(), optimizer=Adam(learning_rate=tune.learning_rate),metrics=['accuracy', true_positives, false_positives, true_negatives, false_negatives])
-        self.model.fit(train_dataset,validation_data=val_dataset, epochs=tune.epochs, callbacks=[cp,es,accuracy_history], verbose =2)
+        self.model.fit(train_dataset,validation_data=val_dataset, epochs=tune.epochs, callbacks=[cp,es,accuracy_history], verbose =1)
         
 class AccuracyHistory(Callback):
     def __init__(self):
@@ -362,6 +365,7 @@ class AccuracyHistory(Callback):
         self.train_accuracy = []
         self.val_accuracy = []
         self.sequence_of_image = []
+        self.stride = []
         self.learning_rate = []
         self.reshuffle =  []
         self.dropout1 = []
@@ -419,6 +423,7 @@ class AccuracyHistory(Callback):
         self.train_accuracy.append(logs.get('accuracy'))
         self.val_accuracy.append(logs.get('val_accuracy'))
         self.sequence_of_image.append(tune.sequence_of_images)
+        self.stride.append(tune.stride)
         self.learning_rate.append(tune.learning_rate)
         self.reshuffle.append(tune.reshuffle)
         self.dropout1.append(tune.dropout1)
@@ -451,6 +456,7 @@ class AccuracyHistory(Callback):
             'Train_Accuracy': self.train_accuracy,
             'Val_Accuracy': self.val_accuracy,
             'Sequence_of_Image': self.sequence_of_image,
+            'stride':self.stride,
             'Learning_Rate': self.learning_rate,
             'Reshuffle': self.reshuffle,
             'Dropout1': self.dropout1,
@@ -493,12 +499,15 @@ class AccuracyHistory(Callback):
 class tuning():
     def __init__(self):
         self.sequence_of_image_array = [8,9,10]
-        self.learning_rate_array = [0.00005,0.00003, 0.00004, 0.00001,0.0000008, 0.000006 ]
+        self.learning_rate_array = [0.00005,0.00003, 0.00001]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
         self.dense_neurons2_array = [8, 16, 32]
         self.vgg_layers_array= [7,11,15,19]
+        self.slip_instant_labels_array = [0.0001,0.0005, 0.001, 0.003, 0.005]
+        
         self.sequence_of_images =  self.sequence_of_image_array[0]
+        self.stride = 3 
         self.learning_rate = self.learning_rate_array[1]
         self.reshuffle =  self.reshuffle_array[0]
         self.dropout1 = 0.5
@@ -510,14 +519,14 @@ class tuning():
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
-        self.no_of_samples = 450
+        self.no_of_samples = 4559
         self.epochs = 40
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         self.no_of_nonslip_data = 200
         self.slip_instant_labels = 0.0001
-        self.max_labels = 0.2
-        
+        self.max_labels = 0.005
+              
     def start_training(self):
         try:
             manage_data.load_data(no_of_samples=self.no_of_samples)
@@ -544,11 +553,15 @@ class tuning():
             accuracy_history.save_to_csv(accuracy_df)
             accuracy_history.reset_dict()                    
     def Tune(self):
-   
-        for value in self.sequence_of_image_array:
-            self.sequence_of_images = value           
+        # for value in self.vgg_layers_array:
+        #     self.vgg_layers = value         
+        #     self.start_training()
+        # self.vgg_layers= 19
+        
+        for value in self.learning_rate_array:
+            self.learning_rate = value           
             self.start_training()
-        self.sequence_of_images = 5
+        self.learning_rate = 0.0003
         
 def true_positives(y_true, y_pred):
     y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
@@ -580,9 +593,9 @@ def list_subdirectories(directory):
         
         return subdirs
     except FileNotFoundError:
-        return f"The directory '{directory}' does not exist."
+        return "The directory"+ str(directory)+ " does not exist."
     except PermissionError:
-        return f"Permission denied to access '{directory}'."
+        return "Permission denied to access" + str(directory)
     
     
 manage_data = Manage_data()

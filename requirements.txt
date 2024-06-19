@@ -5,3 +5,5 @@ matplotlib==3.7.5
 pandas==2.0.3 
 numpy==1.24.3 
 opencv-python==4.9.0.80  
+seaborn==0.13.2  
+scikit-learn==1.3.2  
