@@ -15,6 +15,7 @@
 6. add dots to the tactile images
 7. checkout what the depth data is
 8. add a convolution layer and global average pooling instead of a dense layer for feature extraction
+9. try reduing the after slip images to avoid overfitting
 
 
 #### Parameters
