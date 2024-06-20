@@ -155,7 +155,7 @@ class Manage_data():
         image_paths = []
         sequential_image_paths = []
         y = []
-        window_size = tune.sequence_of_images
+        window_size = tune.img_sequence_window_size
         for obj_id in range(no_of_samples):
             no_of_images = self.find_no_of_images(obj_id)
             csv_path = os.path.join(self.data_dir, str(obj_id),'slip_log.csv')
@@ -171,10 +171,10 @@ class Manage_data():
             
             label, image_paths = self.set_treshold_values(label,image_paths,csv_path)    
             label, image_paths = self.duplicate_n_balance_data(label, image_paths)
-            y.append(label[:-(tune.sequence_of_images-1)])
+            y.append(label[:-(tune.img_sequence_window_size-1)])
             
-            for i in range(0, len(image_paths) - (tune.sequence_of_images-1)):  # Ensuring sequences of 5 images
-                row = image_paths[i:i+tune.sequence_of_images]
+            for i in range(0, len(image_paths) - (tune.img_sequence_window_size-1)):  # Ensuring sequences of 5 images
+                row = image_paths[i:i+tune.img_sequence_window_size]
                 sequential_image_paths.append(row)
             image_paths = []
 
@@ -245,7 +245,7 @@ class Manage_data():
 
         def wrapped_parse_function(filenames, label):
             images, label = tf.py_function(func=self.parse_function_vgg, inp=[filenames, label], Tout=[tf.float32, tf.float64])
-            images.set_shape((tune.sequence_of_images, 224, 224, 3))  # Explicitly set the shape
+            images.set_shape((tune.img_sequence_window_size, 224, 224, 3))  # Explicitly set the shape
             label.set_shape([])  # Explicitly set the shape for the label
             return images, label
  
@@ -282,15 +282,15 @@ class create_network():
         
         # Define LSTM model
         lstm_model = Sequential([
-            LSTM(64,input_shape=(tune.sequence_of_images, 144768),kernel_regularizer=l1(tune.regularizaion_const) ),
+            LSTM(64,input_shape=(tune.img_sequence_window_size, 144768),kernel_regularizer=l1(tune.regularizaion_const) ),
             Dense(8, activation='relu', kernel_regularizer=l1(tune.regularizaion_const)),
             Dense(1, activation='sigmoid'),
         ])
 
         # Combine CNN and LSTM models
         self.model = Sequential([
-            TimeDistributed(cnn_model, input_shape=(tune.sequence_of_images, 480, 640, 3)),  # Apply CNN to each frame in the sequence
-            (Reshape((tune.sequence_of_images,144768))),
+            TimeDistributed(cnn_model, input_shape=(tune.img_sequence_window_size, 480, 640, 3)),  # Apply CNN to each frame in the sequence
+            (Reshape((tune.img_sequence_window_size,144768))),
             lstm_model,
         ])
         self.model.summary()
@@ -326,7 +326,7 @@ class create_network():
         #25088 is the output of vff_model_flatten
         # Define LSTM model
         lstm_model = Sequential([
-            LSTM(64, input_shape=(tune.sequence_of_images, tune.dense_neurons1)),
+            LSTM(64, input_shape=(tune.img_sequence_window_size, tune.dense_neurons1)),
             Dropout(tune.dropout2),  # Dropout layer to prevent overfitting
             Dense(tune.dense_neurons2, activation='relu'),
             Dropout(tune.dropout3),
@@ -335,8 +335,8 @@ class create_network():
 
         # Combine CNN and LSTM models
         self.model = Sequential([
-            TimeDistributed(vgg_model_flatten, input_shape=(tune.sequence_of_images, 224, 224, 3)),  # Apply CNN to each frame in the sequence
-            (Reshape((tune.sequence_of_images,tune.dense_neurons1))),
+            TimeDistributed(vgg_model_flatten, input_shape=(tune.img_sequence_window_size, 224, 224, 3)),  # Apply CNN to each frame in the sequence
+            (Reshape((tune.img_sequence_window_size,tune.dense_neurons1))),
             lstm_model,
         ])
         vgg_model.summary()
@@ -422,7 +422,7 @@ class AccuracyHistory(Callback):
         self.epoch_count.append(epoch + 1)
         self.train_accuracy.append(logs.get('accuracy'))
         self.val_accuracy.append(logs.get('val_accuracy'))
-        self.sequence_of_image.append(tune.sequence_of_images)
+        self.img_sequence_window_size.append(tune.img_sequence_window_size)
         self.stride.append(tune.stride)
         self.learning_rate.append(tune.learning_rate)
         self.reshuffle.append(tune.reshuffle)
@@ -455,7 +455,7 @@ class AccuracyHistory(Callback):
             'Epoch': self.epoch_count,
             'Train_Accuracy': self.train_accuracy,
             'Val_Accuracy': self.val_accuracy,
-            'Sequence_of_Image': self.sequence_of_image,
+            'img_sequence_window_size': self.img_sequence_window_size,
             'stride':self.stride,
             'Learning_Rate': self.learning_rate,
             'Reshuffle': self.reshuffle,
@@ -498,7 +498,7 @@ class AccuracyHistory(Callback):
         
 class tuning():
     def __init__(self):
-        self.sequence_of_image_array = [8,9,10]
+        self.img_sequence_window_size_array = [8,9,10]
         self.learning_rate_array = [0.00005,0.00003, 0.00001]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
@@ -506,7 +506,7 @@ class tuning():
         self.vgg_layers_array= [7,11,15,19]
         self.slip_instant_labels_array = [0.0001,0.0005, 0.001, 0.003, 0.005]
         
-        self.sequence_of_images =  self.sequence_of_image_array[0]
+        self.img_sequence_window_size =  self.img_sequence_window_size_array[0]
         self.stride = 3 
         self.learning_rate = self.learning_rate_array[1]
         self.reshuffle =  self.reshuffle_array[0]
