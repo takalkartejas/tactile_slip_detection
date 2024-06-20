@@ -42,7 +42,7 @@ class Manage_data():
         no_of_images= len(list(image_dir.glob('*.jpg')))
         return no_of_images
     
-    def set_treshold_values(self, label, image_paths, csv_path):
+    def set_threshold_values(self, label, image_paths, csv_path):
         # Ensure label and image_paths are numpy arrays
         label = np.array(label)
         image_paths = np.array(image_paths)
@@ -164,13 +164,17 @@ class Manage_data():
             label = self.create_slip_instant_labels(csv_path)
             label2 = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
+            #check if the labels are correct
+            np_label = np.array(label)
+            if np.all(np_label==1):
+                continue 
+            
             for img_id in range(no_of_images):
                 image_path = os.path.join(self.data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
             self.check_pattern(label)
             
             label, image_paths = self.set_threshold_values(label,image_paths,csv_path)    
-            
             '''            
             example values of label and image_paths pair             
             label size = 83, imagepaths_size = 83 
@@ -184,7 +188,6 @@ class Manage_data():
                 row = image_paths[i:i+tune.img_sequence_window_size]
                 clubbed_image_paths.append(row)
             
-            # print(len(clubbed_image_paths))
             image_paths = []
             label = np.array(label[(tune.img_sequence_window_size-1):])
             label =  label[::tune.stride]
@@ -209,8 +212,7 @@ class Manage_data():
             label, clubbed_image_paths = self.duplicate_n_balance_data(label, clubbed_image_paths)
             y.append(label)
             file_paths.append(clubbed_image_paths)
-            
-        
+                
         #concatenate = merge multipe arrays into one
         y = np.concatenate(y)
         self.labels = np.array(y)
@@ -279,7 +281,7 @@ class Manage_data():
         
 
         def wrapped_parse_function(filenames, label):
-            images, label = tf.py_function(func=self.parse_function_vgg, inp=[filenames, label], Tout=[tf.float32, tf.float64])
+            images, label = tf.py_function(func=self.parse_function_vgg, inp=[filenames, label], Tout=[tf.float32, tf.int64])
             images.set_shape((tune.img_sequence_window_size, 224, 224, 3))  # Explicitly set the shape
             label.set_shape([])  # Explicitly set the shape for the label
             return images, label
@@ -399,7 +401,7 @@ class AccuracyHistory(Callback):
         self.epoch_count = []
         self.train_accuracy = []
         self.val_accuracy = []
-        self.sequence_of_image = []
+        self.img_sequence_window_size = []
         self.stride = []
         self.learning_rate = []
         self.reshuffle =  []
@@ -533,7 +535,8 @@ class AccuracyHistory(Callback):
         
 class tuning():
     def __init__(self):
-        self.img_sequence_window_size_array = [8,9,10]
+        self.img_sequence_window_size_array = [8, 10, 12]
+        self.stride_array=[5,3,1]
         self.learning_rate_array = [0.00005,0.00003, 0.00001]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
@@ -542,7 +545,7 @@ class tuning():
         self.slip_instant_labels_array = [0.0001,0.0005, 0.001, 0.003, 0.005]
         
         self.img_sequence_window_size =  self.img_sequence_window_size_array[0]
-        self.stride = 3 
+        self.stride = 5 
         self.learning_rate = self.learning_rate_array[1]
         self.reshuffle =  self.reshuffle_array[0]
         self.dropout1 = 0.5
@@ -593,10 +596,10 @@ class tuning():
         #     self.start_training()
         # self.vgg_layers= 19
         
-        for value in self.learning_rate_array:
-            self.learning_rate = value           
+        for value in self.stride_array:
+            self.stride = value           
             self.start_training()
-        self.learning_rate = 0.0003
+        self.stride = 5
         
 def true_positives(y_true, y_pred):
     y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
