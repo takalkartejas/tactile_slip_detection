@@ -150,7 +150,7 @@ class Manage_data():
         return labels, image_paths           
             
             
-    def load_data(self, no_of_samples = 600):
+    def load_data(self, no_of_samples = 30):
         file_paths = []
         image_paths = []
         sequential_image_paths = []
@@ -169,19 +169,54 @@ class Manage_data():
                 image_paths.append(image_path)
             self.check_pattern(label)
             
-            label, image_paths = self.set_treshold_values(label,image_paths,csv_path)    
-            label, image_paths = self.duplicate_n_balance_data(label, image_paths)
-            y.append(label[:-(tune.img_sequence_window_size-1)])
+            label, image_paths = self.set_threshold_values(label,image_paths,csv_path)    
             
-            for i in range(0, len(image_paths) - (tune.img_sequence_window_size-1)):  # Ensuring sequences of 5 images
+            '''            
+            example values of label and image_paths pair             
+            label size = 83, imagepaths_size = 83 
+            zeroes = 41, ones = 42
+            img40 == 0, img41 == 1
+            '''
+            
+            # club images together as per the window
+            clubbed_image_paths = []
+            for i in range(0, len(image_paths) - (tune.img_sequence_window_size-1), tune.stride):  # Ensuring sequences of 5 images
                 row = image_paths[i:i+tune.img_sequence_window_size]
-                sequential_image_paths.append(row)
+                clubbed_image_paths.append(row)
+            
+            # print(len(clubbed_image_paths))
             image_paths = []
+            label = np.array(label[(tune.img_sequence_window_size-1):])
+            label =  label[::tune.stride]
 
+            '''   
+            new version - label = label[(tune.img_sequence_window_size-1):]       
+            example values of label and clubbed_image_paths  
+            here img_sequence_window_size = 3   
+            clubbed_image_paths = [0,1,2] ... [80,81,82]       
+            label size = 81, imagepaths_size = 81
+            zeroes = 39, ones = 42
+            [38,39,40] == 0 ,[39,40,41] == 1, [40,41,42] == 1, [41,42,43] == 1
+            '''
+            
+            '''   
+            striding-
+            1 = [0,1,2],[1,2,3],..., obj_id=2, image_paths_size=135, label_size = 135
+            2 = [0,1,2],[2,3,4],..., obj_id=2, image_paths_size=68 135/2 = 67.5, label_size = 68
+            3 = [0,1,2],[3,4,5],..., obj_id=2, imagepaths_size=45,  135/3 = 45, label_size = 45
+            '''
+            # duplicate the data to balance the ones and zeroes 
+            label, clubbed_image_paths = self.duplicate_n_balance_data(label, clubbed_image_paths)
+            y.append(label)
+            file_paths.append(clubbed_image_paths)
+            
+        
+        #concatenate = merge multipe arrays into one
         y = np.concatenate(y)
         self.labels = np.array(y)
-
-        self.file_paths = np.array(sequential_image_paths)
+        # print(self.labels.shape) = 2025
+        self.file_paths = np.concatenate(file_paths)
+        # print(self.file_paths.shape) = (2025,3)
         
     def shuffle_file_paths(self):
         # Shuffle the dataset
