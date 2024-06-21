@@ -33,11 +33,34 @@ from sklearn.metrics import confusion_matrix, f1_score
 
 class Manage_data():
     def __init__(self):
-        data_dir='/mnt/storage/home/rag-tt/tactile_images/'
+        data_dir='/home/rag-tt/'
+        self.train_data_dir = os.path.join(data_dir,'train_data')
+        self.test_data_dir = os.path.join(data_dir,'test_data')
         self.data_dir= pathlib.Path(data_dir)
         
-    def find_no_of_images(self, obj_id):
-        image_dir = os.path.join(self.data_dir, str(obj_id))
+    def count_subdirectories(self,directory):
+        try:
+            # List all entries in the directory
+            entries = os.listdir(directory)
+            
+            # Filter out the subdirectories
+            subdirectories = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+            
+            # Count the subdirectories
+            num_subdirectories = len(subdirectories)
+            
+            print(f"The directory '{directory}' contains {num_subdirectories} subdirectories.")
+            return num_subdirectories
+            
+        except FileNotFoundError:
+            print(f"The directory '{directory}' does not exist.")
+        except PermissionError:
+            print(f"Permission denied: Unable to access '{directory}'.")
+        except Exception as e:
+            print(f"Error: {e}")
+    
+    def find_no_of_images(self, data_dir,obj_id):
+        image_dir = os.path.join(data_dir, str(obj_id))
         image_dir= pathlib.Path(image_dir)
         no_of_images= len(list(image_dir.glob('*.jpg')))
         return no_of_images
@@ -150,18 +173,18 @@ class Manage_data():
         return labels, image_paths           
             
             
-    def load_data(self, no_of_samples = 30):
+    def load_data(self,data_dir, no_of_samples):
         file_paths = []
         image_paths = []
-        sequential_image_paths = []
         y = []
-        window_size = tune.img_sequence_window_size
+        
         for obj_id in range(no_of_samples):
-            no_of_images = self.find_no_of_images(obj_id)
-            csv_path = os.path.join(self.data_dir, str(obj_id),'slip_log.csv')
+            no_of_images = self.find_no_of_images(data_dir,obj_id)
+            csv_path = os.path.join(data_dir, str(obj_id),'slip_log.csv')
             if no_of_images < 40 or not os.path.exists(csv_path):
                 continue
             label = self.create_slip_instant_labels(csv_path)
+            
             label2 = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
             #check if the labels are correct
@@ -170,7 +193,7 @@ class Manage_data():
                 continue 
             
             for img_id in range(no_of_images):
-                image_path = os.path.join(self.data_dir, str(obj_id), str(img_id)+ '.jpg')
+                image_path = os.path.join(data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
             self.check_pattern(label)
             
@@ -212,55 +235,23 @@ class Manage_data():
             label, clubbed_image_paths = self.duplicate_n_balance_data(label, clubbed_image_paths)
             y.append(label)
             file_paths.append(clubbed_image_paths)
-                
+              
         #concatenate = merge multipe arrays into one
         y = np.concatenate(y)
-        self.labels = np.array(y)
+        labels = np.array(y)
         # print(self.labels.shape) = 2025
-        self.file_paths = np.concatenate(file_paths)
+        file_paths = np.concatenate(file_paths)
         # print(self.file_paths.shape) = (2025,3)
+        return labels, file_paths
         
-    def shuffle_file_paths(self):
+    def shuffle_file_paths(self, labels, file_paths):
         # Shuffle the dataset
-        indices = np.arange(len(self.file_paths))
+        indices = np.arange(len(file_paths))
         np.random.shuffle(indices)
-        self.file_paths = self.file_paths[indices]
-        self.labels = self.labels[indices]
-        
-    def shuffle_train_file_paths(self):
-        # Shuffle the dataset
-        indices = np.arange(len(self.train_filepaths))
-        np.random.shuffle(indices)
-        self.train_filepaths = self.train_filepaths[indices]
-        self.train_labels = self.train_labels[indices]
-        
-    def create_split_filepaths(self,train=0.7,val=0.2):
-        dataset_size = len(self.file_paths)
-        train_size = int(train * dataset_size)
-
-        val_size = int(val * dataset_size)
-        
-        test_size = dataset_size - train_size - val_size
-        print('dataset_size=', dataset_size)
-        print('train size=', train_size)
-        print('test size=', test_size)
-        print('val size=', val_size)
-        self.train_filepaths = self.file_paths[ : train_size]
-        self.val_filepaths = self.file_paths[train_size : train_size+val_size]
-        self.test_filepaths = self.file_paths[train_size+val_size : ]
-        
-        self.train_labels = self.labels[ : train_size]
-        self.val_labels = self.labels[train_size : train_size+val_size]
-        self.test_labels = self.labels[train_size+val_size : ]
-        
-        # Check the sizes of the splits
-        assert len(self.train_filepaths) == train_size, "Training set size mismatch"
-        assert len(self.val_filepaths) == val_size, "Validation set size mismatch"
-        assert len(self.test_filepaths) == test_size, "Test set size mismatch"
-        assert len(self.train_labels) == train_size, "Training set size mismatch"
-        assert len(self.val_labels) == val_size, "Validation set size mismatch"
-        assert len(self.test_labels) == test_size, "Test set size mismatch"
-        
+        file_paths = file_paths[indices]
+        labels = labels[indices]
+        return labels, file_paths
+    
     def parse_function_vgg(self, filenames, label):
         images = []
         for filename in filenames:
@@ -275,7 +266,7 @@ class Manage_data():
         images = tf.stack(images)
         return images, label
         
-    def create_dataset(self,file_paths, labels):
+    def create_dataset(self, labels, file_paths):
                 # Create a TensorFlow dataset from the file paths and labels
         dataset = tf.data.Dataset.from_tensor_slices((file_paths, labels))
         
@@ -293,10 +284,6 @@ class Manage_data():
         dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
         return dataset
         
-    def create_split_datasets(self):
-        self.train_dataset = self.create_dataset(self.train_filepaths, self.train_labels)
-        self.val_dataset = self.create_dataset(self.val_filepaths, self.val_labels)
-        self.test_dataset = self.create_dataset(self.test_filepaths, self.test_labels)
         
 class create_network():
 
@@ -536,8 +523,7 @@ class AccuracyHistory(Callback):
 class tuning():
     def __init__(self):
         self.img_sequence_window_size_array = [8, 10, 12]
-        self.stride_array=[5,3,1]
-        self.learning_rate_array = [0.00005,0.00003, 0.00001]
+        self.learning_rate_array = [0.00003, 0.00001]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
         self.dense_neurons2_array = [8, 16, 32]
@@ -545,8 +531,8 @@ class tuning():
         self.slip_instant_labels_array = [0.0001,0.0005, 0.001, 0.003, 0.005]
         
         self.img_sequence_window_size =  self.img_sequence_window_size_array[0]
-        self.stride = 5 
-        self.learning_rate = self.learning_rate_array[1]
+        self.stride = 1 
+        self.learning_rate = self.learning_rate_array[0]
         self.reshuffle =  self.reshuffle_array[0]
         self.dropout1 = 0.5
         self.dropout2 = 0.5
@@ -567,11 +553,20 @@ class tuning():
               
     def start_training(self):
         try:
-            manage_data.load_data(no_of_samples=self.no_of_samples)
-            # manage_data.shuffle_file_paths()
-            manage_data.create_split_filepaths()
-            manage_data.shuffle_train_file_paths()
-            manage_data.create_split_datasets()
+            train_data_dir = manage_data.train_data_dir
+            test_data_dir = manage_data.test_data_dir
+            
+            train_data_qty = manage_data.count_subdirectories(train_data_dir)
+            test_data_qty = manage_data.count_subdirectories(test_data_dir)
+            self.no_of_samples = train_data_qty
+            
+            train_labels, train_file_paths = manage_data.load_data(data_dir = train_data_dir, no_of_samples=train_data_qty)
+            test_labels, test_file_paths = manage_data.load_data(data_dir = test_data_dir, no_of_samples=test_data_qty)
+            
+            train_labels, train_file_paths = manage_data.shuffle_file_paths(train_labels, train_file_paths)
+            
+            train_dataset = manage_data.create_dataset(train_labels, train_file_paths )
+            test_dataset = manage_data.create_dataset(test_labels, test_file_paths)
             network.vgg_lstm()
             
             #print the tuning parametrs before training
@@ -580,7 +575,7 @@ class tuning():
             # Transpose the DataFrame
             df_transposed = df.transpose()
             print(df_transposed)
-            network.train(manage_data.train_dataset, manage_data.val_dataset)
+            network.train(train_dataset, test_dataset)
         
         # Ensure accuracy data is saved even if training is interrupted 
         finally:        
@@ -589,17 +584,18 @@ class tuning():
 
             # Save the DataFrame to a CSV file
             accuracy_history.save_to_csv(accuracy_df)
-            accuracy_history.reset_dict()                    
+            accuracy_history.reset_dict()             
+                   
     def Tune(self):
         # for value in self.vgg_layers_array:
         #     self.vgg_layers = value         
         #     self.start_training()
         # self.vgg_layers= 19
         
-        for value in self.stride_array:
-            self.stride = value           
+        for value in self.learning_rate_array:
+            self.learning_rate = value           
             self.start_training()
-        self.stride = 5
+        self.learning_rate = 0.00003
         
 def true_positives(y_true, y_pred):
     y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
