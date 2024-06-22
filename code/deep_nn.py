@@ -548,8 +548,8 @@ class tuning():
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
         self.no_of_nonslip_data = 200
-        self.slip_instant_labels = 0.0001
-        self.max_labels = 0.005
+        self.slip_instant_labels = 0.0002
+        self.max_labels = 0.02
               
     def start_training(self):
         try:
