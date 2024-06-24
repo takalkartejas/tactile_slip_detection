@@ -16,7 +16,7 @@
 7. checkout what the depth data is ( need to confirm if depth data is readily available or I need to create a code to find it in real sensor)
 8. add a convolution layer and global average pooling instead of a dense layer for feature extraction (theoretically should reduce the overfitting and memory consumption. already implemented)
 9. try reduing the after slip images to avoid overfitting ( increased the amount of preslip images)
-
+10. remove some the data at the tranistion between 0 and 1  
 
 #### Parameters
 1. sequence_of_image 
