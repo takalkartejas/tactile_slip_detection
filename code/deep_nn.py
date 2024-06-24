@@ -30,6 +30,9 @@ import datetime
 from tensorflow.keras.callbacks import Callback
 from sklearn.metrics import confusion_matrix, f1_score
 
+import logging
+# Set the print options to display the entire array
+np.set_printoptions(threshold=np.inf)
 
 class Manage_data():
     def __init__(self):
@@ -65,7 +68,7 @@ class Manage_data():
         no_of_images= len(list(image_dir.glob('*.jpg')))
         return no_of_images
     
-    def set_threshold_values(self, label, image_paths, csv_path):
+    def trim_data(self, label, image_paths, csv_path):
         # Ensure label and image_paths are numpy arrays
         label = np.array(label)
         image_paths = np.array(image_paths)
@@ -90,20 +93,25 @@ class Manage_data():
         # Remove the same number of elements from the start of image_paths
         paths_with_few_zeroes = image_paths[zeroes_to_remove:]
         
+        
+        min_tranistion_trim_value = tune.min_trim_value
+        max_tranistion_trim_value = tune.slip_instant_labels
         trimmed_labels = []
         trimmed_paths = []
         slip_values = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=2, dtype=None, encoding=None)
         i = 0
         for slip_value in slip_values:
             if slip_value < tune.max_labels:
-                trimmed_labels.append(label_with_few_zeroes[i])
-                trimmed_paths.append(paths_with_few_zeroes[i])
+                if max_tranistion_trim_value < slip_value or slip_value < min_tranistion_trim_value:
+                    trimmed_labels.append(label_with_few_zeroes[i])
+                    trimmed_paths.append(paths_with_few_zeroes[i])
             i += 1
         trimmed_labels = np.array(trimmed_labels)
         trimmed_paths = np.array(trimmed_paths)
-        # print('label_with_few_zeroes =', label_with_few_zeroes.shape)
+        # print(slip_values)
+        # print('label_with_few_zeroes =', label_with_few_zeroes)
         # print('paths_with_few_zeroes=', paths_with_few_zeroes.shape)
-        # print('trimmed_labels=', trimmed_labels.shape)
+        # print('trimmed_labels=', trimmed_labels)
         # print('trimed_paths=', trimmed_paths.shape)
         return trimmed_labels, trimmed_paths
     
@@ -172,7 +180,53 @@ class Manage_data():
 
         return labels, image_paths           
             
+    def balance_n_separate_data(self, labels, image_paths):
+        # Convert labels to numpy array for easier manipulation
+        labels = np.array(labels)
+        image_paths = np.array(image_paths)
+
+        # Get indices of each class
+        class_0_indices = np.where(labels == 0)[0]
+        class_1_indices = np.where(labels == 1)[0]
             
+        # Check if either class is empty
+        if len(class_0_indices) == 0 or len(class_1_indices) == 0:
+            # print(f"Skipping balancing for {labels} as one of the classes is missing")
+            return labels, image_paths
+
+        labels_0=[]
+        labels_1=[]
+        image_paths_0=[]
+        image_paths_1=[]
+        #separate_data
+        for i in class_0_indices:
+            labels_0.append(labels[i])
+            image_paths_0.append(image_paths[i])
+        for i in class_1_indices:
+            labels_1.append(labels[i])
+            image_paths_1.append(image_paths[i])   
+        
+        # print('labels_0',labels_0)
+        # print('image_paths_0',image_paths_0)
+        # print('labels_1',labels_1)
+        # print('image_paths_1',image_paths_1)
+                 
+        # Calculate the difference in the number of samples
+        diff = len(class_0_indices) - len(class_1_indices)
+
+        if diff < 0:  # More 1s than 0s
+            # Randomly duplicate class 0 samples to balance the dataset
+            additional_indices = np.random.choice(class_0_indices, size=-diff, replace=True)
+            labels_0 = np.concatenate([labels_0, labels[additional_indices]])
+            image_paths_0 = np.concatenate([image_paths_0, image_paths[additional_indices]])
+        
+        # print('labels_0',labels_0)
+        # print('image_paths_0',image_paths_0)
+        # print('labels_1',labels_1)
+        # print('image_paths_1',image_paths_1)
+        
+        return labels_0, image_paths_0, labels_1, image_paths_1  
+                
     def load_data(self,data_dir, no_of_samples):
         file_paths = []
         image_paths = []
@@ -197,24 +251,32 @@ class Manage_data():
                 image_paths.append(image_path)
             self.check_pattern(label)
             
-            label, image_paths = self.set_threshold_values(label,image_paths,csv_path)    
+            label, image_paths = self.trim_data(label,image_paths,csv_path)    
             '''            
             example values of label and image_paths pair             
             label size = 83, imagepaths_size = 83 
             zeroes = 41, ones = 42
             img40 == 0, img41 == 1
             '''
+            label_0, image_paths_0, label_1, image_paths_1 = self.balance_n_separate_data(label,image_paths) 
             
-            # club images together as per the window
+            # club images together seperately and then jouin together in one dataset
             clubbed_image_paths = []
-            for i in range(0, len(image_paths) - (tune.img_sequence_window_size-1), tune.stride):  # Ensuring sequences of 5 images
-                row = image_paths[i:i+tune.img_sequence_window_size]
+            for i in range(0, len(image_paths_0) - (tune.img_sequence_window_size-1), tune.stride):  # Ensuring sequences of 5 images
+                row = image_paths_0[i:i+tune.img_sequence_window_size]
                 clubbed_image_paths.append(row)
-            
+                
+            for i in range(0, len(image_paths_1) - (tune.img_sequence_window_size-1), tune.stride):  # Ensuring sequences of 5 images
+                row = image_paths_1[i:i+tune.img_sequence_window_size]
+                clubbed_image_paths.append(row)
+                            
             image_paths = []
-            label = np.array(label[(tune.img_sequence_window_size-1):])
-            label =  label[::tune.stride]
-
+            label_0 = np.array(label_0[(tune.img_sequence_window_size-1):])
+            label_0 =  label_0[::tune.stride]
+            label_1 = np.array(label_1[(tune.img_sequence_window_size-1):])
+            label_1 =  label_1[::tune.stride]
+            label = np.concatenate((label_0, label_1))
+            
             '''   
             new version - label = label[(tune.img_sequence_window_size-1):]       
             example values of label and clubbed_image_paths  
@@ -232,7 +294,11 @@ class Manage_data():
             3 = [0,1,2],[3,4,5],..., obj_id=2, imagepaths_size=45,  135/3 = 45, label_size = 45
             '''
             # duplicate the data to balance the ones and zeroes 
-            label, clubbed_image_paths = self.duplicate_n_balance_data(label, clubbed_image_paths)
+            # label, clubbed_image_paths = self.duplicate_n_balance_data(label, clubbed_image_paths)
+            # for i in range(label.size):
+            #     print('data=', clubbed_image_paths[i])
+            #     print('label=', label[i])
+            
             y.append(label)
             file_paths.append(clubbed_image_paths)
               
@@ -407,6 +473,7 @@ class AccuracyHistory(Callback):
         self.no_of_nonslip_data = []
         self.slip_instant_labels = [] 
         self.max_labels = []
+        self.min_trim_value = []
         self.tp = []
         self.tn = []
         self.fp = []
@@ -465,6 +532,7 @@ class AccuracyHistory(Callback):
         self.no_of_nonslip_data.append(tune.no_of_nonslip_data)
         self.slip_instant_labels.append(tune.slip_instant_labels)
         self.max_labels.append(tune.max_labels)
+        self.min_trim_value.append(tune.min_trim_value)
         self.tp.append(tp)
         self.tn.append(tn)
         self.fp.append(fp)
@@ -498,6 +566,7 @@ class AccuracyHistory(Callback):
             'no_of_nonslip_data':self.no_of_nonslip_data,
             'slip_instant_labels':self.slip_instant_labels,
             'max_labels':self.max_labels,
+            'min_trim_value':self.min_trim_value,
             'tp':self.tp,
             'tn':self.tn,
             'fp':self.fp,
@@ -543,30 +612,40 @@ class tuning():
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
-        self.no_of_samples = 4559
+        self.no_of_samples = 50
         self.epochs = 40
         self.vgg_layers = 19
         self.other_param='additional cnn + global average'
-        self.no_of_nonslip_data = 200
-        self.slip_instant_labels = 0.0002
+        self.no_of_nonslip_data = 2000
+        self.slip_instant_labels = 0.0003
         self.max_labels = 0.02
-              
-    def start_training(self):
-        try:
+        self.min_trim_value = 0.000005
+    
+    def define_dataset(self,no_of_train_samples=1000000, no_of_test_samples=1000000):
+
             train_data_dir = manage_data.train_data_dir
             test_data_dir = manage_data.test_data_dir
             
             train_data_qty = manage_data.count_subdirectories(train_data_dir)
             test_data_qty = manage_data.count_subdirectories(test_data_dir)
-            self.no_of_samples = train_data_qty
+            if no_of_train_samples > train_data_qty:
+                no_of_train_samples = train_data_qty
+                self.no_of_samples = train_data_qty
+            if no_of_test_samples > test_data_qty:
+                no_of_test_samples = test_data_qty
             
-            train_labels, train_file_paths = manage_data.load_data(data_dir = train_data_dir, no_of_samples=train_data_qty)
-            test_labels, test_file_paths = manage_data.load_data(data_dir = test_data_dir, no_of_samples=test_data_qty)
+            train_labels, train_file_paths = manage_data.load_data(data_dir = train_data_dir, no_of_samples=no_of_train_samples)
+            test_labels, test_file_paths = manage_data.load_data(data_dir = test_data_dir, no_of_samples=no_of_test_samples)
             
             train_labels, train_file_paths = manage_data.shuffle_file_paths(train_labels, train_file_paths)
             
             train_dataset = manage_data.create_dataset(train_labels, train_file_paths )
-            test_dataset = manage_data.create_dataset(test_labels, test_file_paths)
+            test_dataset = manage_data.create_dataset(test_labels, test_file_paths) 
+            return train_dataset, test_dataset 
+                        
+    def start_training(self):
+        try:
+            train_dataset, test_dataset = self.define_dataset()
             network.vgg_lstm()
             
             #print the tuning parametrs before training
@@ -631,6 +710,9 @@ def list_subdirectories(directory):
     except PermissionError:
         return "Permission denied to access" + str(directory)
     
+def test_function():
+    train_dataset, test_dataset = tune.define_dataset(2,1)
+    
     
 manage_data = Manage_data()
 network = create_network()
@@ -638,4 +720,5 @@ manage_data= Manage_data()
 tune = tuning()
 accuracy_history = AccuracyHistory()
 
-tune.Tune()
+# tune.Tune()
+test_function()

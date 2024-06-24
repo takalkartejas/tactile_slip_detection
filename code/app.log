@@ -1,0 +1,2 @@
+2024-06-24 17:01:19,457 - tensorflow - DEBUG - Layer lstm will use cuDNN kernels when running on GPU.
+2024-06-24 17:01:21,802 - h5py._conv - DEBUG - Creating converter from 5 to 3
