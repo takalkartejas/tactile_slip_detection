@@ -9,13 +9,13 @@
 
 1. Change to binary crossentropy - benificial for binary classifications (Implemented) (improved training accuracy)
 2. Play around with learning rate (effecting training accuracy) (tuning para)
-3. remove some convolution layers from VGG16 (make a tuning parameter out of it)
-4. shuffle in load data
-5. adjust the labeling according to sudden change in object position
-6. add dots to the tactile images
-7. checkout what the depth data is
-8. add a convolution layer and global average pooling instead of a dense layer for feature extraction
-9. try reduing the after slip images to avoid overfitting
+3. remove some convolution layers from VGG16 (tried it, just puts a cap on accuracy araound 52%)
+4. shuffle in load data (shuffled the data before training)
+5. adjust the labeling according to sudden change in object position ( there is no sudden change in object position, the object starts slipping with a really small velocity)
+6. add dots to the tactile images( it might take time, better to focus on using depth images)
+7. checkout what the depth data is ( need to confirm if depth data is readily available or I need to create a code to find it in real sensor)
+8. add a convolution layer and global average pooling instead of a dense layer for feature extraction (theoretically should reduce the overfitting and memory consumption. already implemented)
+9. try reduing the after slip images to avoid overfitting ( increased the amount of preslip images)
 
 
 #### Parameters
