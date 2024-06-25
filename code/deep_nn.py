@@ -188,16 +188,18 @@ class Manage_data():
         # Get indices of each class
         class_0_indices = np.where(labels == 0)[0]
         class_1_indices = np.where(labels == 1)[0]
-            
-        # Check if either class is empty
-        if len(class_0_indices) == 0 or len(class_1_indices) == 0:
-            # print(f"Skipping balancing for {labels} as one of the classes is missing")
-            return labels, image_paths
 
         labels_0=[]
         labels_1=[]
         image_paths_0=[]
         image_paths_1=[]
+        
+        # Check if either class is empty
+        if len(class_0_indices) == 0 or len(class_1_indices) == 0:
+            print(f"Skipping balancing for {labels} as one of the classes is missing")
+            return labels_0,labels_1,image_paths_0,image_paths_1
+
+
         #separate_data
         for i in class_0_indices:
             labels_0.append(labels[i])
@@ -241,17 +243,26 @@ class Manage_data():
             
             label2 = np.genfromtxt(csv_path, delimiter=',', skip_header=1, usecols=1, dtype=None, encoding=None)
             
-            #check if the labels are correct
-            np_label = np.array(label)
-            if np.all(np_label==1):
-                continue 
-            
             for img_id in range(no_of_images):
                 image_path = os.path.join(data_dir, str(obj_id), str(img_id)+ '.jpg')
                 image_paths.append(image_path)
             self.check_pattern(label)
             
-            label, image_paths = self.trim_data(label,image_paths,csv_path)    
+            label, image_paths = self.trim_data(label,image_paths,csv_path)  
+
+            #check if the labels are correct
+            np_label = np.array(label)  
+            if np.all(np_label==1):
+                image_paths = []
+                continue 
+            
+            class_0_indices = np.where(label == 0)[0]
+            class_1_indices = np.where(label == 1)[0]
+            
+            if len(class_0_indices) > len(class_1_indices):
+                image_paths = []
+                continue
+            
             '''            
             example values of label and image_paths pair             
             label size = 83, imagepaths_size = 83 
@@ -259,6 +270,7 @@ class Manage_data():
             img40 == 0, img41 == 1
             '''
             label_0, image_paths_0, label_1, image_paths_1 = self.balance_n_separate_data(label,image_paths) 
+
             
             # club images together seperately and then jouin together in one dataset
             clubbed_image_paths = []
@@ -305,6 +317,7 @@ class Manage_data():
         #concatenate = merge multipe arrays into one
         y = np.concatenate(y)
         labels = np.array(y)
+        
         # print(self.labels.shape) = 2025
         file_paths = np.concatenate(file_paths)
         # print(self.file_paths.shape) = (2025,3)
@@ -436,7 +449,7 @@ class create_network():
     def train(self, train_dataset, val_dataset):
         cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
             # EarlyStopping callback to stop training when validation accuracy stops improving
-        es = EarlyStopping(monitor='val_accuracy', patience=2, restore_best_weights=True)
+        es = EarlyStopping(monitor='val_accuracy', patience=1, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensor board
         tb= tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -619,7 +632,7 @@ class tuning():
         self.no_of_nonslip_data = 2000
         self.slip_instant_labels = 0.0003
         self.max_labels = 0.02
-        self.min_trim_value = 0.000005
+        self.min_trim_value = 0.000007
     
     def define_dataset(self,no_of_train_samples=1000000, no_of_test_samples=1000000):
 
@@ -638,6 +651,10 @@ class tuning():
             test_labels, test_file_paths = manage_data.load_data(data_dir = test_data_dir, no_of_samples=no_of_test_samples)
             
             train_labels, train_file_paths = manage_data.shuffle_file_paths(train_labels, train_file_paths)
+            train_labels = np.array(train_labels)
+            test_labels = np.array(test_labels)
+            print('train_labels_type',train_labels.dtype)
+            print('test labels dtype',test_labels.dtype )
             
             train_dataset = manage_data.create_dataset(train_labels, train_file_paths )
             test_dataset = manage_data.create_dataset(test_labels, test_file_paths) 
@@ -720,5 +737,5 @@ manage_data= Manage_data()
 tune = tuning()
 accuracy_history = AccuracyHistory()
 
-# tune.Tune()
-test_function()
+tune.Tune()
+# test_function()
