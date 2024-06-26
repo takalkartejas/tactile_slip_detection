@@ -605,7 +605,7 @@ class AccuracyHistory(Callback):
 class tuning():
     def __init__(self):
         self.img_sequence_window_size_array = [8, 10, 12]
-        self.learning_rate_array = [0.00003, 0.00001]
+        self.learning_rate_array = [0.00003, 0.00005]
         self.reshuffle_array=[False, True]
         self.regularization_constant_array = [0.01, 0.05, 0.1, 0.2, 0.3]
         self.dense_neurons2_array = [8, 16, 32]
