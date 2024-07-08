@@ -36,7 +36,7 @@ np.set_printoptions(threshold=np.inf)
 
 class Manage_data():
     def __init__(self):
-        data_dir='/home/rag-tt/'
+        data_dir='/home/rag-tt/workspace'
         self.train_data_dir = os.path.join(data_dir,'train_data')
         self.test_data_dir = os.path.join(data_dir,'test_data')
         self.data_dir= pathlib.Path(data_dir)
