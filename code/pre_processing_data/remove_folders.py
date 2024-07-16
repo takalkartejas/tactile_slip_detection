@@ -25,8 +25,8 @@ def remove_folders_in_range(parent_dir, min_val, max_val):
             continue
 
 # Example usage:
-parent_directory = '/home/rag-tt/train_data'
-minimum_value = 5590
-maximum_value = 10000
+parent_directory = '/home/rag-tt/workspace/test_data'
+minimum_value = 1197
+maximum_value = 1310
 
 remove_folders_in_range(parent_directory, minimum_value, maximum_value)
