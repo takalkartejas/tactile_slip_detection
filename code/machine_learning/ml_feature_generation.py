@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import os
 # Set the environment variable to use only the GPU with ID 1 (GTX 1080 Ti)
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import PIL
 import tensorflow as tf
 
@@ -280,10 +280,10 @@ class Manage_data():
 
             label_0, features_0, label_1, features_1 = ml.create_ml_features(label_0, image_paths_0, label_1, image_paths_1)     
             
-            labels.append(label_0)
-            labels.append(label_1)
-            features.append(features_0)
-            features.append(features_1)
+            labels = np.concatenate((label_0,label_1))
+            features = np.concatenate((features_0,features_1))
+            # features = np.array(features)
+            print('features.shape===============',features.shape)
             self.save_hog_features_and_labels(features, label, obj_id, feature_dir)
             labels = []
             features = []
@@ -561,7 +561,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.decomposition import PCA
 from skimage import data, exposure
-
+from skimage.transform import resize
 class ml_algorithm():
     
     def __init__(self):
@@ -572,18 +572,20 @@ class ml_algorithm():
         features = []
         for image_path in image_paths:
             image = cv2.imread(image_path)
+            
+    
             gray_img = rgb2gray(image)
+            
             hog_features, hog_image = hog(gray_img, pixels_per_cell=(64, 64), cells_per_block=(2, 2), visualize=True, feature_vector=True)
             # reduced_features = self.pca.fit_transform(hog_features)
             features.append(hog_features)
         features = np.array(features)
-        
         return features
     
     def create_ml_features(self,label_0, image_paths_0, label_1, image_paths_1):
         hog_features_0 = self.find_hog_features_using_paths(image_paths_0)
         hog_features_1 = self.find_hog_features_using_paths(image_paths_1)
-        print(hog_features_0.shape, hog_features_1.shape)
+        print('feature',hog_features_0.shape, hog_features_1.shape)
         
         
         # club hog features together seperately and then join together in one dataset

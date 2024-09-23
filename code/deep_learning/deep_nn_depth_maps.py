@@ -269,6 +269,7 @@ class Manage_data():
             np_label = np.array(label)  
             if np.all(np_label==1):
                 image_paths = []
+                depth_image_paths = []
                 continue 
             
             class_0_indices = np.where(label == 0)[0]
@@ -276,6 +277,7 @@ class Manage_data():
             
             if len(class_0_indices) > len(class_1_indices):
                 image_paths = []
+                depth_image_paths = []
                 continue
             
             '''            
@@ -287,7 +289,7 @@ class Manage_data():
             label_0, image_paths_0,depth_image_paths_0, label_1, image_paths_1, depth_image_paths_1 = self.balance_n_separate_data(label,image_paths,depth_image_paths) 
 
             
-            # club images together seperately and then jouin together in one dataset
+            # club images together seperately and then join together in one dataset
             clubbed_image_paths = []
             for i in range(0, len(image_paths_0) - (tune.img_sequence_window_size-1), tune.stride):  # Ensuring sequences of 5 images
                 image_row = image_paths_0[i:i+tune.img_sequence_window_size]
@@ -334,10 +336,15 @@ class Manage_data():
             # for i in range(label.size):
             #     print('data=', clubbed_image_paths[i])
             #     print('label=', label[i])
-            
+            # remove arrays with inconsistent shapes
+            clubbed_image_paths_np = np.array(clubbed_image_paths)
+            shape = clubbed_image_paths_np.shape
+            shape_np = np.array(shape)
+            if shape_np.shape[0] != 2:
+                continue
             y.append(label)
             file_paths.append(clubbed_image_paths)
-              
+                  
         #concatenate = merge multipe arrays into one
         y = np.concatenate(y)
         labels = np.array(y)
@@ -345,6 +352,7 @@ class Manage_data():
         # print(self.labels.shape) = 2025
         file_paths = np.concatenate(file_paths)
         # print(self.file_paths.shape) = (2025,3)
+        
         return labels, file_paths
         
     def shuffle_file_paths(self, labels, file_paths):
@@ -357,15 +365,42 @@ class Manage_data():
     
     def parse_function_vgg(self, filenames, label):
         images = []
+        last_valid_image = None  # Initialize to store the last valid image
         for filename in filenames:
             image_string = tf.io.read_file(filename)
-            image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-            image_resized = tf.image.resize(image_decoded, [224, 224])  # Adjust size as needed
-            # Convert image to a float32 tensor and preprocess it for VGG16
-            image = tf.cast(image_resized, tf.float32)
-            image = preprocess_input(image)
-            # Ensure images are float32 and normalized between 0 and 1
-            images.append(image)
+            
+            # Check if the image is empty
+            if tf.equal(tf.size(image_string), 0):
+                print(f"Warning: File {filename} is empty or invalid.")
+                if last_valid_image is not None:
+                    print(f"Using last valid image as placeholder for {filename}.")
+                    images.append(last_valid_image)
+                continue
+            
+            # Decode JPEG and handle potential decoding errors
+            try:
+                image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+                image_resized = tf.image.resize(image_decoded, [224, 224])  # Resize as needed
+                
+                # Convert image to float32 and preprocess for VGG16
+                image = tf.cast(image_resized, tf.float32)
+                image = preprocess_input(image)  # Normalize for VGG16
+                
+                images.append(image)
+                last_valid_image = image  # Update last valid image
+            
+            except tf.errors.InvalidArgumentError:
+                print(f"Error: Failed to decode JPEG file at {filename}.")
+                if last_valid_image is not None:
+                    print(f"Using last valid image as placeholder for {filename}.")
+                    images.append(last_valid_image)  # Use last valid image
+                continue
+            except Exception as e:
+                print(f"Unexpected error with file {filename}: {e}")
+                if last_valid_image is not None:
+                    print(f"Using last valid image as placeholder for {filename}.")
+                    images.append(last_valid_image)  # Use last valid image
+                continue
         images = tf.stack(images)
         return images, label
         
@@ -409,15 +444,15 @@ class create_network():
         
         # Define LSTM model
         lstm_model = Sequential([
-            LSTM(64,input_shape=(tune.img_sequence_window_size, 144768),kernel_regularizer=l1(tune.regularizaion_const) ),
+            LSTM(64,input_shape=(tune.img_sequence_window_size*2, 144768),kernel_regularizer=l1(tune.regularizaion_const) ),
             Dense(8, activation='relu', kernel_regularizer=l1(tune.regularizaion_const)),
             Dense(1, activation='sigmoid'),
         ])
 
         # Combine CNN and LSTM models
         self.model = Sequential([
-            TimeDistributed(cnn_model, input_shape=(tune.img_sequence_window_size, 480, 640, 3)),  # Apply CNN to each frame in the sequence
-            (Reshape((tune.img_sequence_window_size,144768))),
+            TimeDistributed(cnn_model, input_shape=(tune.img_sequence_window_size*2, 480, 640, 3)),  # Apply CNN to each frame in the sequence
+            (Reshape((tune.img_sequence_window_size*2,144768))),
             lstm_model,
         ])
         self.model.summary()
@@ -453,7 +488,7 @@ class create_network():
         #25088 is the output of vff_model_flatten
         # Define LSTM model
         lstm_model = Sequential([
-            LSTM(64, input_shape=(tune.img_sequence_window_size, tune.dense_neurons1)),
+            LSTM(64, input_shape=(tune.img_sequence_window_size*2, tune.dense_neurons1)),
             Dropout(tune.dropout2),  # Dropout layer to prevent overfitting
             Dense(tune.dense_neurons2, activation='relu'),
             Dropout(tune.dropout3),
@@ -462,8 +497,8 @@ class create_network():
 
         # Combine CNN and LSTM models
         self.model = Sequential([
-            TimeDistributed(vgg_model_flatten, input_shape=(tune.img_sequence_window_size, 224, 224, 3)),  # Apply CNN to each frame in the sequence
-            (Reshape((tune.img_sequence_window_size,tune.dense_neurons1))),
+            TimeDistributed(vgg_model_flatten, input_shape=(tune.img_sequence_window_size*2, 224, 224, 3)),  # Apply CNN to each frame in the sequence
+            (Reshape((tune.img_sequence_window_size*2,tune.dense_neurons1))),
             lstm_model,
         ])
         vgg_model.summary()
@@ -645,7 +680,7 @@ class tuning():
         self.dropout3 = 0.5
         self.dropout4 = 0.5
         self.regularization_constant = 0.001
-        self.batch_size = 4
+        self.batch_size = 2
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
@@ -667,7 +702,7 @@ class tuning():
             test_data_qty = manage_data.count_subdirectories(test_data_dir)
             if no_of_train_samples > train_data_qty:
                 no_of_train_samples = train_data_qty
-                self.no_of_samples = train_data_qty
+                # self.no_of_samples = train_data_qty
             if no_of_test_samples > test_data_qty:
                 no_of_test_samples = test_data_qty
             
@@ -782,5 +817,5 @@ manage_data= Manage_data()
 tune = tuning()
 accuracy_history = AccuracyHistory()
 
-# tune.Tune()
-test_function()
+tune.Tune()
+# test_function()

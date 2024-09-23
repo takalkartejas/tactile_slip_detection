@@ -311,9 +311,18 @@ class Manage_data():
             #     print('data=', clubbed_image_paths[i])
             #     print('label=', label[i])
             
+            
+            clubbed_image_paths_np = np.array(clubbed_image_paths)
+            shape = clubbed_image_paths_np.shape
+            shape_np = np.array(shape)
+            
+            # remove arrays with inconsistent shapes
+            if shape_np.shape[0] != 2:
+                continue
+
+                
             y.append(label)
             file_paths.append(clubbed_image_paths)
-              
         #concatenate = merge multipe arrays into one
         y = np.concatenate(y)
         labels = np.array(y)
