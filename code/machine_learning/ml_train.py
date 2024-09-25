@@ -16,7 +16,7 @@ from tensorflow.keras.models import Sequential, Model
 import pandas as pd
 import numpy as np
 import pathlib
-
+import joblib
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed, Conv2D, MaxPooling2D, Flatten, Reshape
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -36,7 +36,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.linear_model import SGDClassifier
 len_dataLoader = 0
-
+import time
 class Manage_data():
     def __init__(self):
         data_dir='/home/rag-tt/workspace/'
@@ -301,6 +301,7 @@ class AccuracyHistory(Callback):
     def __init__(self):
         super().__init__()
         self.reset_dict()
+        self.start_time = time.time()
              
     def reset_dict(self):
         self.no_of_samples = []
@@ -313,7 +314,7 @@ class AccuracyHistory(Callback):
         self.accuracy = []
         self.precision = []
         self.recall = []
-
+        self.elapsed_time = []
         self.validation_data = None  
        
     def set_model(self, model):
@@ -324,6 +325,9 @@ class AccuracyHistory(Callback):
             print("Validation data is not available at the start of training.")    
      
     def on_epoch_end(self, epoch, logs=None):
+        
+        self.end_time = time.time()
+        elapsed_time = self.end_time - self.start_time
         self.no_of_samples.append(tune.no_of_samples)
         self.model.append(tune.model)
         self.loss.append(tune.loss)
@@ -334,6 +338,7 @@ class AccuracyHistory(Callback):
         self.accuracy.append(tune.accuracy)
         self.precision.append(tune.precision)
         self.recall.append(tune.recall)
+        self.elapsed_time.append(elapsed_time)
 
         
     def create_accuracy_dataframe(self):
@@ -348,7 +353,8 @@ class AccuracyHistory(Callback):
             'f1':self.f1,
             'precision':self.precision,
             'recall':self.recall,
-            'accuracy':self.accuracy
+            'accuracy':self.accuracy,
+            'elapsed_time':self.elapsed_time
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -360,8 +366,8 @@ class AccuracyHistory(Callback):
                 if not os.path.isfile(filename):
                     break
                 file_number += 1
-            filename_model ='tune_log_ml/'+ 'model' + str(file_number) + '.h5'
-            # network.model.save(filename_model)
+            filename_model ='tune_log_ml/'+ 'model' + str(file_number) + '.joblib'
+            joblib.dump(network.model, filename_model)
             accuracy_df.to_csv(filename, index=False)    
         
 class tuning():
@@ -378,8 +384,8 @@ class tuning():
     def define_dataset(self,no_of_train_samples=1000000, no_of_test_samples=1000000):
 
         # Example usage
-        train_features_dir = '/home/rag-tt/workspace/hog_features2/train_features'
-        test_features_dir = '/home/rag-tt/workspace/hog_features2/test_features'
+        train_features_dir = '/home/rag-tt/workspace/hog_features/train_features'
+        test_features_dir = '/home/rag-tt/workspace/hog_features/test_features'
 
         batch_size = 128
 
@@ -397,7 +403,7 @@ class tuning():
             # # Transpose the DataFrame
             # df_transposed = df.transpose()
             # print(df_transposed)
-            network = create_network()
+
             network.train(train_data_loader)
             self.tpr, self.tnr, self.f1, self.accuracy, self.precision, self.recall=  network.evaluate(test_data_loader)
             
@@ -630,7 +636,7 @@ class create_network():
         return tpr, tnr, f1, accuracy, precision, recall
 
 
-
+network = create_network()
 tune = tuning()
 accuracy_history = AccuracyHistory()
 tune.Tune()

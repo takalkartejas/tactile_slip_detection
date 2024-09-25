@@ -29,7 +29,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 import datetime
 from tensorflow.keras.callbacks import Callback
 from sklearn.metrics import confusion_matrix, f1_score
-
+import time
 import logging
 # Set the print options to display the entire array
 np.set_printoptions(threshold=np.inf)
@@ -40,6 +40,8 @@ class Manage_data():
         self.train_data_dir = os.path.join(data_dir,'train_data')
         self.test_data_dir = os.path.join(data_dir,'test_data')
         self.data_dir= pathlib.Path(data_dir)
+        self.last_valid_image = None  # Initialize to store the last valid image
+        self.create_a_dummy_image()
         
     def count_subdirectories(self,directory):
         try:
@@ -363,18 +365,30 @@ class Manage_data():
         labels = labels[indices]
         return labels, file_paths
     
+    def create_a_dummy_image(self):
+        filename= os.path.join(self.train_data_dir,str(1), str(1) + '.jpg')
+        image_string = tf.io.read_file(filename)                                        
+        image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+        image_resized = tf.image.resize(image_decoded, [224, 224])  # Resize as needed
+        
+        # Convert image to float32 and preprocess for VGG16
+        image = tf.cast(image_resized, tf.float32)
+        image = preprocess_input(image)  # Normalize for VGG16
+        
+        self.last_valid_image = image  # Update last valid image
+                
     def parse_function_vgg(self, filenames, label):
         images = []
-        last_valid_image = None  # Initialize to store the last valid image
+        
         for filename in filenames:
             image_string = tf.io.read_file(filename)
             
             # Check if the image is empty
             if tf.equal(tf.size(image_string), 0):
                 print(f"Warning: File {filename} is empty or invalid.")
-                if last_valid_image is not None:
+                if self.last_valid_image is not None:
                     print(f"Using last valid image as placeholder for {filename}.")
-                    images.append(last_valid_image)
+                    images.append(self.last_valid_image)
                 continue
             
             # Decode JPEG and handle potential decoding errors
@@ -387,19 +401,18 @@ class Manage_data():
                 image = preprocess_input(image)  # Normalize for VGG16
                 
                 images.append(image)
-                last_valid_image = image  # Update last valid image
             
             except tf.errors.InvalidArgumentError:
                 print(f"Error: Failed to decode JPEG file at {filename}.")
-                if last_valid_image is not None:
+                if self.last_valid_image is not None:
                     print(f"Using last valid image as placeholder for {filename}.")
-                    images.append(last_valid_image)  # Use last valid image
+                    images.append(self.last_valid_image)  # Use last valid image
                 continue
             except Exception as e:
                 print(f"Unexpected error with file {filename}: {e}")
-                if last_valid_image is not None:
+                if self.last_valid_image is not None:
                     print(f"Using last valid image as placeholder for {filename}.")
-                    images.append(last_valid_image)  # Use last valid image
+                    images.append(self.last_valid_image)  # Use last valid image
                 continue
         images = tf.stack(images)
         return images, label
@@ -421,7 +434,10 @@ class Manage_data():
         dataset = dataset.batch(tune.batch_size)  # Adjust batch size as needed
         dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
         return dataset
-        
+    
+    def test_data(self,train_dataset):
+        for batch in train_dataset:
+            a=1
         
 class create_network():
 
@@ -521,6 +537,7 @@ class AccuracyHistory(Callback):
     def __init__(self):
         super().__init__()
         self.reset_dict()
+        self.start_time = time.time()
              
     def reset_dict(self):
         self.epoch_count = []
@@ -554,6 +571,7 @@ class AccuracyHistory(Callback):
         self.tnr = []
         self.fnr = []
         self.f1 = []
+        self.elapsed_time = []
         self.validation_data = None  
        
     def set_model(self, model):
@@ -582,6 +600,9 @@ class AccuracyHistory(Callback):
         # print('tp= ',tp,'tn= ',tn,'fp= ',fp,'fn= ',fn)
         # print('tpr= ',tpr,'fnr= ',fnr,'f1= ',f1)
 
+        self.end_time = time.time()
+        elapsed_time = self.end_time - self.start_time
+        
         self.epoch_count.append(epoch + 1)
         self.train_accuracy.append(logs.get('accuracy'))
         self.val_accuracy.append(logs.get('val_accuracy'))
@@ -612,6 +633,7 @@ class AccuracyHistory(Callback):
         self.tpr.append(tpr)
         self.fnr.append(fnr)
         self.f1.append(f1)
+        self.elapsed_time.append(elapsed_time)
 
         
     def create_accuracy_dataframe(self):
@@ -645,7 +667,8 @@ class AccuracyHistory(Callback):
             'fn':self.fn,
             'tpr':self.tpr,
             'fnr':self.fnr,
-            'f1':self.f1
+            'f1':self.f1,
+            'elapsed_time':self.elapsed_time
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -716,6 +739,7 @@ class tuning():
             print('test labels dtype',test_labels.dtype )
             
             train_dataset = manage_data.create_dataset(train_labels, train_file_paths )
+            # manage_data.test_data(train_dataset)
             test_dataset = manage_data.create_dataset(test_labels, test_file_paths) 
             return train_dataset, test_dataset 
                         

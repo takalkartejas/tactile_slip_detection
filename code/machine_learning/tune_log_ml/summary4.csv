@@ -1,0 +1,2 @@
+no_of_samples,model,loss,max_iterations,tpr,tnr,f1,precision,recall,accuracy,elapsed_time,no_of_samples = 200
+0,SGDClassifier,log_loss,1,0.7072481957954189,0.31625054752518617,0.7562066651755759,0.8124474348191758,0.7072481957954189,0.6318811212428234,12.393943786621094
