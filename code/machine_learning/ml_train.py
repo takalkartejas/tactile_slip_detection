@@ -36,6 +36,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.linear_model import SGDClassifier
 len_dataLoader = 0
+from sklearn.impute import SimpleImputer
 import time
 class Manage_data():
     def __init__(self):
@@ -384,8 +385,8 @@ class tuning():
     def define_dataset(self,no_of_train_samples=1000000, no_of_test_samples=1000000):
 
         # Example usage
-        train_features_dir = '/home/rag-tt/workspace/hog_features/train_features'
-        test_features_dir = '/home/rag-tt/workspace/hog_features/test_features'
+        train_features_dir = '/home/rag-tt/workspace/hog_features2/train_features'
+        test_features_dir = '/home/rag-tt/workspace/hog_features2/test_features'
 
         batch_size = 128
 
@@ -522,8 +523,8 @@ def load_hog_features_and_labels(features_dir):
         for feature, label in zip(features, labels):    
         # Yield each feature and label pair as you process them
         # for feature, label in zip(features, labels):
-            if feature.shape != (8, 1944):
-                raise ValueError(f"Expected feature shape (8, 1944), but got {feature.shape[-2:]}")
+            if feature.shape != (8, 1946):
+                raise ValueError(f"Expected feature shape (8, 1946), but got {feature.shape[-2:]}")
             yield feature, label  # Yielding as you go instead of concatenating all
             
         feature_np =  np.array(feature)
@@ -537,7 +538,7 @@ class HOGFeaturesDataset(tf.data.Dataset):
         return tf.data.Dataset.from_generator(
             cls._generator,
             output_signature=(
-                tf.TensorSpec(shape=(8,1944), dtype=tf.float32),
+                tf.TensorSpec(shape=(8,1946), dtype=tf.float32),
                 tf.TensorSpec(shape=(), dtype=tf.int64)
             ),
             args=(features_dir,)
@@ -557,7 +558,7 @@ class create_network():
         self.model = SGDClassifier(loss='log_loss',  # Use logistic regression for binary classification
                                    max_iter=1,  # One iteration per batch
                                    warm_start=True)  # Keep weights between batches (important) 
-   
+        self.latest_valid_batch = 0
         
     def train(self, data_loader):
         # Iterate over the data loader
@@ -567,14 +568,28 @@ class create_network():
         
 
         completed_batches = 0
-        
+        # Create an imputer instance to fill NaN values with the mean (or another strategy)
+        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')        
         # Iterate over the data loader
         for batch_features, batch_labels in data_loader:  
               
             # Flatten the features to fit into the model
             batch_features_flat = tf.reshape(batch_features, (batch_features.shape[0], -1)).numpy()  # Flatten to 2D
             batch_labels_flat = batch_labels.numpy()
-
+            # Impute missing values in batch_features_flat
+            batch_features_flat = imputer.fit_transform(batch_features_flat)
+            if batch_features_flat.shape == (128,15568):
+                self.latest_valid_batch = batch_features_flat
+            else:
+                batch_features_flat = self.latest_valid_batch
+                
+            if batch_labels_flat.shape == (128,):
+                self.latest_valid_labels = batch_labels_flat
+            else:
+                batch_labels_flat = self.latest_valid_labels
+                                
+            print('batch_features=', batch_features_flat.shape)
+            print('batch_lables=', batch_labels_flat.shape)
             # Fit the model incrementally with the current batch
             self.model.partial_fit(batch_features_flat, batch_labels_flat,classes=np.array([0, 1]))
 

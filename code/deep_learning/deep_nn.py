@@ -16,6 +16,7 @@ from tensorflow.keras.models import Sequential, Model
 import pandas as pd
 import numpy as np
 import pathlib
+import time
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed, Conv2D, MaxPooling2D, Flatten, Reshape
@@ -30,6 +31,16 @@ import datetime
 from tensorflow.keras.callbacks import Callback
 from sklearn.metrics import confusion_matrix, f1_score
 
+# gpus = tf.config.list_physical_devices('GPU')
+# if gpus:
+#     try:
+#         # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
+#         tf.config.experimental.set_virtual_device_configuration(
+#             gpus[0],
+#             [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)])
+#     except RuntimeError as e:
+#         print(e)
+        
 import logging
 # Set the print options to display the entire array
 np.set_printoptions(threshold=np.inf)
@@ -40,6 +51,8 @@ class Manage_data():
         self.train_data_dir = os.path.join(data_dir,'train_data')
         self.test_data_dir = os.path.join(data_dir,'test_data')
         self.data_dir= pathlib.Path(data_dir)
+        self.last_valid_image = None  # Initialize to store the last valid image
+        self.create_a_dummy_image()
         
     def count_subdirectories(self,directory):
         try:
@@ -330,6 +343,8 @@ class Manage_data():
         # print(self.labels.shape) = 2025
         file_paths = np.concatenate(file_paths)
         # print(self.file_paths.shape) = (2025,3)
+        image_paths = []
+        del y
         return labels, file_paths
         
     def shuffle_file_paths(self, labels, file_paths):
@@ -339,18 +354,56 @@ class Manage_data():
         file_paths = file_paths[indices]
         labels = labels[indices]
         return labels, file_paths
-    
+
+    def create_a_dummy_image(self):
+        filename= os.path.join(self.train_data_dir,str(1), str(1) + '.jpg')
+        image_string = tf.io.read_file(filename)                                        
+        image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+        image_resized = tf.image.resize(image_decoded, [224, 224])  # Resize as needed
+        
+        # Convert image to float32 and preprocess for VGG16
+        image = tf.cast(image_resized, tf.float32)
+        image = preprocess_input(image)  # Normalize for VGG16
+        
+        self.last_valid_image = image  # Update last valid image
+            
     def parse_function_vgg(self, filenames, label):
         images = []
+        
         for filename in filenames:
             image_string = tf.io.read_file(filename)
-            image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-            image_resized = tf.image.resize(image_decoded, [224, 224])  # Adjust size as needed
-            # Convert image to a float32 tensor and preprocess it for VGG16
-            image = tf.cast(image_resized, tf.float32)
-            image = preprocess_input(image)
-            # Ensure images are float32 and normalized between 0 and 1
-            images.append(image)
+            
+            # Check if the image is empty
+            if tf.equal(tf.size(image_string), 0):
+                print(f"Warning: File {filename} is empty or invalid.")
+                if self.last_valid_image is not None:
+                    print(f"Using last valid image as placeholder for {filename}.")
+                    images.append(self.last_valid_image)
+                continue
+            
+            # Decode JPEG and handle potential decoding errors
+            try:
+                image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+                image_resized = tf.image.resize(image_decoded, [224, 224])  # Resize as needed
+                
+                # Convert image to float32 and preprocess for VGG16
+                image = tf.cast(image_resized, tf.float32)
+                image = preprocess_input(image)  # Normalize for VGG16
+                
+                images.append(image)
+            
+            except tf.errors.InvalidArgumentError:
+                print(f"Error: Failed to decode JPEG file at {filename}.")
+                if self.last_valid_image is not None:
+                    print(f"Using last valid image as placeholder for {filename}.")
+                    images.append(self.last_valid_image)  # Use last valid image
+                continue
+            except Exception as e:
+                print(f"Unexpected error with file {filename}: {e}")
+                if self.last_valid_image is not None:
+                    print(f"Using last valid image as placeholder for {filename}.")
+                    images.append(self.last_valid_image)  # Use last valid image
+                continue
         images = tf.stack(images)
         return images, label
         
@@ -456,7 +509,7 @@ class create_network():
         self.model.summary()
         
     def train(self, train_dataset, val_dataset):
-        cp = ModelCheckpoint('model_vgg_test/',monitor='val_accuracy',save_best_only=True)
+        cp = ModelCheckpoint(filepath='checkpoint.h5',monitor='val_accuracy',save_best_only=True,save_weights_only=False,verbose=1)        # Save the full model (structure + weights).verbose=1)
             # EarlyStopping callback to stop training when validation accuracy stops improving
         es = EarlyStopping(monitor='val_accuracy', patience=1, restore_best_weights=True)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -471,7 +524,8 @@ class AccuracyHistory(Callback):
     def __init__(self):
         super().__init__()
         self.reset_dict()
-             
+        self.start_time = time.time()
+                     
     def reset_dict(self):
         self.epoch_count = []
         self.train_accuracy = []
@@ -504,6 +558,7 @@ class AccuracyHistory(Callback):
         self.tnr = []
         self.fnr = []
         self.f1 = []
+        self.elapsed_time = []
         self.validation_data = None  
        
     def set_model(self, model):
@@ -531,7 +586,10 @@ class AccuracyHistory(Callback):
         f1 =  (tp + tn) /(tn + fp + fn + tp) if (tn + fp + fn + tp) > 0 else 0
         # print('tp= ',tp,'tn= ',tn,'fp= ',fp,'fn= ',fn)
         # print('tpr= ',tpr,'fnr= ',fnr,'f1= ',f1)
-
+        
+        self.end_time = time.time()
+        elapsed_time = self.end_time - self.start_time
+        
         self.epoch_count.append(epoch + 1)
         self.train_accuracy.append(logs.get('accuracy'))
         self.val_accuracy.append(logs.get('val_accuracy'))
@@ -562,7 +620,14 @@ class AccuracyHistory(Callback):
         self.tpr.append(tpr)
         self.fnr.append(fnr)
         self.f1.append(f1)
+        self.elapsed_time.append(elapsed_time)
+        
+        # Create a DataFrame from the accuracy history lists
+        accuracy_df = self.create_accuracy_dataframe()
 
+        # Save the DataFrame to a CSV file
+        self.save_to_csv(accuracy_df)
+        
         
     def create_accuracy_dataframe(self):
         accuracy_df = pd.DataFrame({
@@ -595,7 +660,8 @@ class AccuracyHistory(Callback):
             'fn':self.fn,
             'tpr':self.tpr,
             'fnr':self.fnr,
-            'f1':self.f1
+            'f1':self.f1,
+            'elapsed_time':self.elapsed_time
         })
         return accuracy_df    
     def save_to_csv(self, accuracy_df):
@@ -609,7 +675,8 @@ class AccuracyHistory(Callback):
                 file_number += 1
             filename_model ='tune_log/'+ 'model' + str(file_number) + '.h5'
             network.model.save(filename_model)
-            accuracy_df.to_csv(filename, index=False)    
+            accuracy_df.to_csv(filename, index=False)
+            print('saving'+ str(file_number))    
         
 class tuning():
     def __init__(self):
@@ -630,7 +697,7 @@ class tuning():
         self.dropout3 = 0.5
         self.dropout4 = 0.5
         self.regularization_constant = 0.001
-        self.batch_size = 4
+        self.batch_size = 8
         self.dense_neurons1 = 64
         self.dense_neurons2 = 8
         self.csv_id = 0
@@ -656,8 +723,8 @@ class tuning():
             if no_of_test_samples > test_data_qty:
                 no_of_test_samples = test_data_qty
             
-            train_labels, train_file_paths = manage_data.load_data(data_dir = train_data_dir, no_of_samples=no_of_train_samples)
-            test_labels, test_file_paths = manage_data.load_data(data_dir = test_data_dir, no_of_samples=no_of_test_samples)
+            train_labels, train_file_paths = manage_data.load_data(data_dir = train_data_dir, no_of_samples=15)
+            test_labels, test_file_paths = manage_data.load_data(data_dir = test_data_dir, no_of_samples=15)
             
             train_labels, train_file_paths = manage_data.shuffle_file_paths(train_labels, train_file_paths)
             train_labels = np.array(train_labels)
@@ -702,6 +769,7 @@ class tuning():
             self.start_training()
         self.learning_rate = 0.00003
         
+
 def true_positives(y_true, y_pred):
     y_pred = tf.round(tf.clip_by_value(y_pred, 0, 1))
     tp = tf.reduce_sum(tf.cast(y_true * y_pred, 'float'), axis=0)
@@ -742,7 +810,6 @@ def test_function():
     
 manage_data = Manage_data()
 network = create_network()
-manage_data= Manage_data()
 tune = tuning()
 accuracy_history = AccuracyHistory()
 

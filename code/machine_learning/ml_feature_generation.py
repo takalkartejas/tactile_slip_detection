@@ -578,8 +578,11 @@ class ml_algorithm():
             
             hog_features, hog_image = hog(gray_img, pixels_per_cell=(64, 64), cells_per_block=(2, 2), visualize=True, feature_vector=True)
             # reduced_features = self.pca.fit_transform(hog_features)
+            hog_features_np = np.array(hog_features)
+            print('hog_features_np', hog_features_np.shape)
             features.append(hog_features)
         features = np.array(features)
+        
         return features
     
     def create_ml_features(self,label_0, image_paths_0, label_1, image_paths_1):
