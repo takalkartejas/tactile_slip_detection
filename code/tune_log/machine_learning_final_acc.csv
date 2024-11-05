@@ -1,0 +1,2 @@
+model,loss,max_iterations,f1,accuracy,validation accuracy,elapsed_time, no_of_samples
+SGDClassifier,log_loss,1,0.7937304750619413,0.802414862,0.6642056713957526,457.9226064682007,28589

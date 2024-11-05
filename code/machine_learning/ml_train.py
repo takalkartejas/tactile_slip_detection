@@ -328,7 +328,7 @@ class AccuracyHistory(Callback):
     def on_epoch_end(self, epoch, logs=None):
         
         self.end_time = time.time()
-        elapsed_time = self.end_time - self.start_time
+        elapsed_time = (self.end_time - self.start_time)/60
         self.no_of_samples.append(tune.no_of_samples)
         self.model.append(tune.model)
         self.loss.append(tune.loss)
