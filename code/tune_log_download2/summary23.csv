@@ -1,9 +1,0 @@
-Epoch,Train_Accuracy,Val_Accuracy,Sequence_of_Image,Learning_Rate,Reshuffle,Dropout1,Dropout2,Dropout3,Dropout4,Regularization_Constant,Batch_Size,dense_neurons1,dense_neurons2,no_of_samples,epochs,vgg_layers,other_param,no_of_nonslip_data,slip_instant_labels,max_labels
-1,0.0,0.0,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-1,0.5896046757698059,0.602809488773346,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-2,0.6042544841766357,0.602809488773346,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-3,0.6403772830963135,0.6161544919013977,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-4,0.7046959400177002,0.5661106109619141,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-5,0.7605859637260437,0.574012279510498,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-6,0.787577748298645,0.5856013894081116,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
-7,0.8026791214942932,0.5847234129905701,6,3e-05,False,0.5,0.5,0.5,0.5,0.001,4,64,8,400,50,19,additional cnn + global average,200,5e-05,0.005
